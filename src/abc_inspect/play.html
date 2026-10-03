@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Play · ABC Sim</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#121416;color:#e9edf0;font:15px system-ui,sans-serif}main{max-width:1200px;margin:28px auto;padding:0 20px}header,footer{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:18px 0}h1{font-size:20px;margin:0 auto 0 0;font-weight:550}button,select{font:inherit;color:inherit;background:#292d32;border:1px solid #4b5158;border-radius:7px;padding:8px 14px;cursor:pointer}button:disabled{opacity:.45;cursor:wait}button:focus-visible,select:focus-visible{outline:2px solid #8ad9b2}#views{display:grid;grid-template-columns:2fr 1fr;gap:12px}figure{margin:0;position:relative;background:#202429;border-radius:10px;overflow:hidden}figure:first-child{grid-row:span 2}img{display:block;width:100%;aspect-ratio:4/3;object-fit:contain}figcaption{position:absolute;bottom:10px;left:12px;background:#121416b0;padding:3px 7px;border-radius:4px;color:#ddd;font-size:12px}#status{color:#91dcb4;margin-right:auto}kbd{border:1px solid #50565d;border-bottom-width:3px;border-radius:4px;padding:2px 6px;color:#fff}#help{color:#b7bec5;line-height:2.3;font-size:14px}#touch{display:flex;flex-wrap:wrap;gap:7px}#touch button{min-width:48px;touch-action:none}#touch button.active{background:#46705b}#error{color:#ffc2ae;min-height:22px}@media(max-width:650px){#views{grid-template-columns:1fr 1fr}figure:first-child{grid-column:span 2;grid-row:auto}}
+</style>
+<main>
+<header><h1>ABC Sim <span style="color:#91dcb4;font-size:12px">LIVE</span></h1><select id="arm" aria-label="Arm"><option value="left">Left arm</option><option value="right">Right arm</option></select><button id="reset">Start</button></header>
+<div id="views"><figure><img id="top" alt="Overhead camera"><figcaption>Overhead</figcaption></figure><figure><img id="left" alt="Left wrist camera"><figcaption>Left wrist</figcaption></figure><figure><img id="right" alt="Right wrist camera"><figcaption>Right wrist</figcaption></figure></div>
+<footer><span id="status">Start to play</span><button id="grip" disabled>Close gripper · Space</button></footer>
+<div id="help"><kbd>W</kbd>/<kbd>S</kbd> forward / back &nbsp; <kbd>A</kbd>/<kbd>D</kbd> left / right &nbsp; <kbd>↑</kbd>/<kbd>↓</kbd> up / down &nbsp; <kbd>←</kbd>/<kbd>→</kbd> rotate &nbsp; <kbd>Esc</kbd> stop</div>
+<div id="touch"><button data-key="w" aria-label="Forward">W</button><button data-key="s" aria-label="Back">S</button><button data-key="a" aria-label="Left">A</button><button data-key="d" aria-label="Right">D</button><button data-key="ArrowUp" aria-label="Up">↑</button><button data-key="ArrowDown" aria-label="Down">↓</button><button data-key="ArrowLeft" aria-label="Rotate left">←</button><button data-key="ArrowRight" aria-label="Rotate right">→</button></div><p id="error" role="alert"></p>
+</main>
+<script>
+const $=id=>document.getElementById(id), keys=new Set();
+const mapping={w:[1,0,0,0],s:[-1,0,0,0],a:[0,1,0,0],d:[0,-1,0,0],ArrowUp:[0,0,1,0],ArrowDown:[0,0,-1,0],ArrowLeft:[0,0,0,1],ArrowRight:[0,0,0,-1]};
+let state=null,busy=false,resetting=false,gripPending=null;
+let closed={left:false,right:false};
+function stop(){keys.clear();gripPending=null;document.querySelectorAll('[data-key]').forEach(b=>b.classList.remove('active'));}
+function render(s){state=s;for(const name of ['top','left','right'])$(name).src=s.images[name];$('status').textContent=s.status==='active'?`Ready · ${s.sim_time.toFixed(1)}s`:'Trial ended · Reset to play';$('reset').textContent='Reset';$('grip').disabled=s.status!=='active';localStorage.setItem('abc-play-session',s.session_id);}
+function gripLabel(){$('grip').textContent=(closed[$('arm').value]?'Open':'Close')+' gripper · Space';}
+async function call(tool,args){
+ const body=JSON.stringify({tool,arguments:args});
+ // Reuse the exact ID/payload if a response is lost; never queue a second motion.
+ for(let attempt=0;attempt<2;attempt++){
+  try{const response=await fetch('/play/api',{method:'POST',headers:{'Content-Type':'application/json'},body});const s=await response.json();if(s.error){if(s.error.includes('pending')&&attempt===0)continue;throw new Error(s.error);}return s;}
+  catch(e){if(e instanceof TypeError&&attempt===0)continue;throw e;}
+ }
+}
+async function reset(){
+ if(busy||resetting)return;resetting=true;stop();gripPending=null;$('reset').disabled=true;$('error').textContent='';$('status').textContent='Starting…';
+ try{if(state?.status==='active')await call('finish_trial',{session_id:state.session_id,request_id:crypto.randomUUID(),expected_sequence:state.sequence,reason:'browser_reset'});
+ render(await call('start_trial',{request_id:crypto.randomUUID(),seed:7,max_steps:1000,task:'count_into_opaque_box'}));closed={left:false,right:false};gripLabel();}
+ catch(e){$('error').textContent=e.message;$('status').textContent='Could not start';}
+ finally{resetting=false;$('reset').disabled=false;}
+}
+function toggleGrip(){if(!state||state.status!=='active'||resetting)return;const arm=$('arm').value;closed[arm]=!closed[arm];gripPending={arm,value:closed[arm]?0:1};gripLabel();tick();}
+async function tick(){
+ if(busy||resetting||!state||state.status!=='active'||(!keys.size&&!gripPending))return;
+ const direction=[0,0,0,0];for(const key of keys)mapping[key]?.forEach((v,i)=>direction[i]+=v);
+ const norm=Math.max(1,Math.hypot(...direction.slice(0,3)));
+ const grip=gripPending;gripPending=null;busy=true;$('reset').disabled=true;$('error').textContent='';
+ try{render(await call('jog_arm',{session_id:state.session_id,request_id:crypto.randomUUID(),expected_sequence:state.sequence,translation:direction.slice(0,3).map(v=>v*.018/norm),yaw:direction[3]*.10,gripper:grip?.value??null,arm:grip?.arm??$('arm').value,steps:Math.min(5,1000-state.physics_steps)}));}
+ catch(e){stop();$('error').textContent=e.message;try{render(await call('observe',{session_id:state.session_id}));}catch{} }
+ finally{busy=false;$('reset').disabled=false;}
+}
+window.addEventListener('keydown',e=>{if(e.target instanceof HTMLSelectElement)return;const key=e.key.length===1?e.key.toLowerCase():e.key;if(key==='Escape'){stop();gripPending=null;e.preventDefault();return;}if(mapping[key]){e.preventDefault();keys.add(key);tick();}if(e.code==='Space'){e.preventDefault();if(!e.repeat)toggleGrip();}});
+window.addEventListener('keyup',e=>{keys.delete(e.key.length===1?e.key.toLowerCase():e.key);});
+window.addEventListener('blur',stop);document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
+for(const b of document.querySelectorAll('[data-key]')){b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys.add(b.dataset.key);b.classList.add('active');tick();});for(const type of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(type,()=>{keys.delete(b.dataset.key);b.classList.remove('active');});}
+$('reset').onclick=reset;$('grip').onclick=toggleGrip;$('arm').onchange=()=>{stop();$('arm').blur();gripLabel();};setInterval(tick,60);
+(async()=>{const id=localStorage.getItem('abc-play-session');if(id){try{render(await call('observe',{session_id:id}));closed={left:state.joint_pos[6]<.5,right:state.joint_pos[13]<.5};gripLabel();}catch{localStorage.removeItem('abc-play-session');}}})();
+</script></html>

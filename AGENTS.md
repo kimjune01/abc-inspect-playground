@@ -5,7 +5,7 @@ commit each coherent change after its checks pass. Run `uv run pytest -q`,
 `uv run ruff check src tests`, and `uv run mypy src/abc_inspect` as appropriate.
 
 The user wants TUI subagents to operate the simulator. The shared localhost MCP
-server has four tools documented in README.md. When its tools are not loaded,
+server has five tools documented in README.md. When its tools are not loaded,
 `uv run python -m abc_inspect.client` is a real protocol client. View the returned
 PNG files before choosing actions. Keep trial ownership explicit; all agents
 share one active session. Reuse request ID and arguments after timeouts.

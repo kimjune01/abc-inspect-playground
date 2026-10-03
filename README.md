@@ -132,3 +132,22 @@ kinematic model. It sends only actuator targets to the real simulator. Coordinat
 joint increments preserve the planned path; clipping each joint independently
 caused the wrist camera to hit the box during development. Bottle grasps remain
 unreliable and are not presented as successful.
+
+
+## Live keyboard play
+
+Run `bash scripts/serve.sh`, then open <http://127.0.0.1:8876/play> in Chrome.
+Click Start. Hold W/S for world-X forward/back, A/D for world-Y left/right,
+up/down arrows for world-Z height, and left/right arrows for yaw. Space toggles
+the selected gripper. Choose either arm; Reset starts a fresh cube/box scene.
+Release keys, press Escape, or leave the window to stop sending commands.
+An already running five-tick command completes before stopping.
+
+The page calls the same MCP tools as agents, including `jog_arm`; it shares the
+single active trial, sequence checks, retry cache, and native Inspect recording.
+`start_trial` accepts `task="count_into_opaque_box"` or the default bottle task.
+Robot-only Mink IK turns Cartesian deltas into bounded actuator targets. The
+wrist retains its tilt while yawing; reach limits or collisions can prevent a
+requested movement. Cameras refresh after each command; simulation pauses when
+idle. Trials end after 1,000 ticks; the prototype retains at most eight trials
+per server run. The original port-8877 page remains a recorded demo.

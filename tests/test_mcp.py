@@ -30,6 +30,7 @@ async def test_mcp_images_actions_retries_and_native_log(tmp_path):
             "start_trial",
             "observe",
             "move_joints",
+            "jog_arm",
             "finish_trial",
         }
         started = await client.call_tool(

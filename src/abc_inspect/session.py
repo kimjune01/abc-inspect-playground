@@ -18,7 +18,7 @@ import numpy as np
 from abc_inspect.adapter import TASK, AbcEmbodiment, AbcSuccessScorer
 
 
-def _run_trial(commands, responses, directory: str, seed: int, max_steps: int):
+def _run_trial(commands, responses, directory: str, seed: int, max_steps: int, task_name: str):
     # Keep the parent's MCP stdout a clean protocol channel.
     os.dup2(2, 1)
     from inspect_robots import eval as inspect_eval
@@ -30,7 +30,10 @@ def _run_trial(commands, responses, directory: str, seed: int, max_steps: int):
     arm = None
     started = time.monotonic()
     try:
-        arm = AbcEmbodiment()
+        arm = AbcEmbodiment(task=task_name)
+        from abc_inspect.teleop import Teleop
+
+        teleop = Teleop(arm)
         embodiment_info = arm.info
         low, high = embodiment_info.action_space.low, embodiment_info.action_space.high
         assert low is not None and high is not None
@@ -47,6 +50,7 @@ def _run_trial(commands, responses, directory: str, seed: int, max_steps: int):
                 wall_elapsed_s=time.monotonic() - started,
                 control_hz=arm.info.control_hz,
                 instruction=obs.instruction,
+                tool_pose=teleop.poses(),
                 limits={
                     "low": low.tolist(),
                     "high": high.tolist(),
@@ -80,6 +84,9 @@ def _run_trial(commands, responses, directory: str, seed: int, max_steps: int):
                 if command["kind"] == "finish":
                     meta.update(request_stop=True, stop_reason=command["reason"])
                     return ActionChunk([Action(observation.state["joint_pos"].copy(), meta=meta)])
+                if command["kind"] == "jog":
+                    return teleop.actions(observation, command)
+                teleop.grippers.clear()
                 target = np.asarray(command["target"], dtype=np.float64)
                 return ActionChunk(
                     [Action(target.copy(), meta=meta) for _ in range(command["steps"])]
@@ -97,7 +104,7 @@ def _run_trial(commands, responses, directory: str, seed: int, max_steps: int):
             scenes=[Scene(id=f"seed-{seed}", instruction=arm.instruction)],
             scorer=AbcSuccessScorer(),
             max_steps=max_steps,
-            metadata={"clock": "paused_between_commands", "task": TASK, "prototype": True},
+            metadata={"clock": "paused_between_commands", "task": task_name, "prototype": True},
         )
         logs = inspect_eval(
             task, ExternalPolicy(), arm, log_dir=directory, store_frames=True, seed=seed
@@ -124,7 +131,17 @@ def _run_trial(commands, responses, directory: str, seed: int, max_steps: int):
 class Session:
     """Retry cache is process-local; a restart starts a new session, never a replay."""
 
-    def __init__(self, log_root: Path, *, seed: int = 0, max_steps: int = 300, timeout: float = 60):
+    def __init__(
+        self,
+        log_root: Path,
+        *,
+        seed: int = 0,
+        max_steps: int = 300,
+        timeout: float = 60,
+        task: str = TASK,
+    ):
+        if task not in (TASK, "count_into_opaque_box"):
+            raise ValueError("Unsupported task")
         if not 1 <= max_steps <= 1000:
             raise ValueError("max_steps must be between 1 and 1000")
         self.id = uuid.uuid4().hex
@@ -142,7 +159,7 @@ class Session:
         self.responses = context.Queue()
         self.process = context.Process(
             target=_run_trial,
-            args=(self.commands, self.responses, str(self.directory), seed, max_steps),
+            args=(self.commands, self.responses, str(self.directory), seed, max_steps, task),
             daemon=True,
         )
         self.process.start()
@@ -205,14 +222,31 @@ class Session:
             if len(command["reason"]) > 200:
                 raise ValueError("reason must be at most 200 characters")
             return
-        target = np.asarray(command["target"], dtype=float)
-        if target.shape != (14,) or not np.isfinite(target).all():
-            raise ValueError("Expected 14 finite joint targets")
         if not 1 <= command["steps"] <= 30:
             raise ValueError("steps must be between 1 and 30")
         remaining = self.max_steps - self.current["physics_steps"]
         if command["steps"] > remaining:
             raise ValueError(f"Only {remaining} physics steps remain")
+        if command["kind"] == "jog":
+            translation = np.asarray(command["translation"], dtype=float)
+            if (
+                translation.shape != (3,)
+                or not np.isfinite(translation).all()
+                or np.linalg.norm(translation) > 0.026
+            ):
+                raise ValueError(
+                    "translation must be 3 finite values totaling at most 0.026 metres"
+                )
+            if not np.isfinite(command["yaw"]) or abs(command["yaw"]) > 0.12:
+                raise ValueError("yaw must be at most 0.12 radians")
+            if command["arm"] not in ("left", "right"):
+                raise ValueError("arm must be left or right")
+            if command["gripper"] is not None and command["gripper"] not in (0.0, 1.0):
+                raise ValueError("gripper must be 0, 1 or null")
+            return
+        target = np.asarray(command["target"], dtype=float)
+        if target.shape != (14,) or not np.isfinite(target).all():
+            raise ValueError("Expected 14 finite joint targets")
         bounds = self.current["limits"]
         if np.any(target < bounds["low"]) or np.any(target > bounds["high"]):
             raise ValueError("Joint target outside actuator limits")
@@ -230,6 +264,31 @@ class Session:
                     "request_id": request_id,
                     "expected_sequence": expected_sequence,
                     "target": list(target),
+                    "steps": steps,
+                }
+            )
+
+    def jog(
+        self,
+        request_id: str,
+        expected_sequence: int,
+        *,
+        translation: list[float],
+        yaw: float = 0.0,
+        gripper: float | None = None,
+        arm: str = "left",
+        steps: int = 5,
+    ):
+        with self.lock:
+            return self._execute(
+                {
+                    "kind": "jog",
+                    "request_id": request_id,
+                    "expected_sequence": expected_sequence,
+                    "translation": list(translation),
+                    "yaw": yaw,
+                    "gripper": gripper,
+                    "arm": arm,
                     "steps": steps,
                 }
             )

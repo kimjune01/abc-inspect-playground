@@ -14,6 +14,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ImageContent, TextContent
 from PIL import Image
 
+from abc_inspect.adapter import TASK
 from abc_inspect.session import Session
 
 
@@ -39,7 +40,7 @@ def content(observation: dict) -> list[TextContent | ImageContent]:
 
 def create_server(log_dir: Path, port: int = 8876):
     sessions: dict[str, Session] = {}
-    starts: dict[str, tuple[int, int, str]] = {}
+    starts: dict[str, tuple[int, int, str, str]] = {}
     start_lock = asyncio.Lock()
 
     mcp = FastMCP(
@@ -62,17 +63,17 @@ def create_server(log_dir: Path, port: int = 8876):
 
     @mcp.tool()
     async def start_trial(
-        request_id: str, seed: int = 7, max_steps: int = 300
+        request_id: str, seed: int = 7, max_steps: int = 300, task: str = TASK
     ) -> list[TextContent | ImageContent]:
-        """Start ABC bottles scene; returns session_id, sequence, proprioception and three PNGs.
+        """Start ABC bottles or count_into_opaque_box scene; returns session_id, sequence, proprioception and three PNGs.
 
         A duplicate start returns the same session's latest state. Up to 8 trials per
         server lifetime; one active at a time. max_steps 1..1000, idle timeout 15 minutes.
         """
         async with start_lock:
             if request_id in starts:
-                previous_seed, previous_steps, session_id = starts[request_id]
-                if (seed, max_steps) != (previous_seed, previous_steps):
+                previous_seed, previous_steps, previous_task, session_id = starts[request_id]
+                if (seed, max_steps, task) != (previous_seed, previous_steps, previous_task):
                     raise ValueError("request_id reused with a different start payload")
                 return content(await asyncio.to_thread(sessions[session_id].observe))
             if not request_id or len(request_id) > 128:
@@ -81,9 +82,11 @@ def create_server(log_dir: Path, port: int = 8876):
                 raise ValueError("Prototype trial limit reached; restart server")
             if any(s.current["status"] != "finished" and not s.closed for s in sessions.values()):
                 raise ValueError("Finish the active trial before starting another")
-            session = await asyncio.to_thread(Session, log_dir, seed=seed, max_steps=max_steps)
+            session = await asyncio.to_thread(
+                Session, log_dir, seed=seed, max_steps=max_steps, task=task
+            )
             sessions[session.id] = session
-            starts[request_id] = (seed, max_steps, session.id)
+            starts[request_id] = (seed, max_steps, task, session.id)
             return content(await asyncio.to_thread(session.observe))
 
     @mcp.tool()
@@ -111,6 +114,34 @@ def create_server(log_dir: Path, port: int = 8876):
         return content(result)
 
     @mcp.tool()
+    async def jog_arm(
+        session_id: str,
+        request_id: str,
+        expected_sequence: int,
+        translation: list[float],
+        yaw: float = 0.0,
+        gripper: float | None = None,
+        arm: str = "left",
+        steps: int = 5,
+    ) -> list[TextContent | ImageContent]:
+        """Jog grasp site in world metres and world-Z yaw radians using robot-only IK.
+
+        Translation norm <= .026m, yaw <= .12rad. Gripper 0 closes, 1 opens.
+        Real bounded actuator motion; obstacles and reach limits can prevent movement.
+        """
+        result = await asyncio.to_thread(
+            lookup(session_id).jog,
+            request_id,
+            expected_sequence,
+            translation=translation,
+            yaw=yaw,
+            gripper=gripper,
+            arm=arm,
+            steps=steps,
+        )
+        return content(result)
+
+    @mcp.tool()
     async def finish_trial(
         session_id: str, request_id: str, expected_sequence: int, reason: str = "agent_finished"
     ) -> list[TextContent | ImageContent]:
@@ -124,6 +155,9 @@ def create_server(log_dir: Path, port: int = 8876):
         )
         return content(result)
 
+    from abc_inspect.play import add_play_routes
+
+    add_play_routes(mcp, port)
     return mcp, sessions
 
 

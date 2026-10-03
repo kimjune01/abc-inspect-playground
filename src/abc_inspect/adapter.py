@@ -49,7 +49,11 @@ class AbcEmbodiment:
         )
         self.last_observation: Observation | None = None
         self.steps = 0
-        self.instruction = "Put the plastic bottles in the bin"
+        self.instruction = (
+            "Put the plastic bottles in the bin"
+            if task == TASK
+            else "Pick up objects and place them in the box"
+        )
         # ABC's generic Gym Box is [-1,1], but its arm commands are joint radians.
         # Use the actual actuator ranges; grippers are normalized [0,1] in ABC.
         low = self.env.model.actuator_ctrlrange[self.env._ctrl_indices, 0].copy()
