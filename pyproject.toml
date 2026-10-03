@@ -1,0 +1,34 @@
+[project]
+name = "abc-inspect-prototype"
+version = "0.1.0"
+description = "Local ABC Sim / Inspect Robots / MCP integration spike"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "numpy", "mujoco~=3.8.0", "gymnasium>=1.1", "pillow", "tyro",
+  "mcp>=1.12,<2", "inspect-robots",
+]
+
+[dependency-groups]
+dev = ["pytest", "pytest-asyncio", "ruff", "mypy"]
+
+[tool.uv.sources]
+inspect-robots = { git = "https://github.com/robocurve/inspect-robots", rev = "d08442a9d1f43af4658c8d71e02d461e780286e1" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/abc_inspect"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
