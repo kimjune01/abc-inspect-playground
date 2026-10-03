@@ -142,9 +142,12 @@ uv run ruff check src tests
 uv run mypy src/abc_inspect
 ```
 
-The 33 tests cover physics, cameras, resets, scoring, retries, concurrency,
+The 35 tests cover physics, cameras, resets, scoring, retries, concurrency,
 transports, scene/task switching, keyboard-control endpoints, and resource cleanup. Source lives in
 [`src/abc_inspect/`](src/abc_inspect/); local artifacts in `outputs/` are ignored.
+
+The UI follows [June’s design notes](https://june.kim/design): explicit states,
+feedback at the point of action, grouped controls, and semantic color.
 
 ## Ideas and attribution
 

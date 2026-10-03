@@ -1,21 +1,33 @@
 <!doctype html>
-<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Play · ABC Sim</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#121416;color:#e9edf0;font:15px system-ui,sans-serif}main{max-width:1200px;margin:28px auto;padding:0 20px}header,footer{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:18px 0}h1{font-size:20px;margin:0 auto 0 0;font-weight:550}button,select{font:inherit;color:inherit;background:#292d32;border:1px solid #4b5158;border-radius:7px;padding:8px 14px;cursor:pointer}button:disabled{opacity:.45;cursor:wait}button:focus-visible,select:focus-visible{outline:2px solid #8ad9b2}#views{display:grid;grid-template-columns:2fr 1fr;gap:12px}figure{margin:0;position:relative;background:#202429;border-radius:10px;overflow:hidden}figure:first-child{grid-row:span 2}img{display:block;width:100%;aspect-ratio:4/3;object-fit:contain}figcaption{position:absolute;bottom:10px;left:12px;background:#121416b0;padding:3px 7px;border-radius:4px;color:#ddd;font-size:12px}#status{color:#91dcb4;margin-right:auto}#status[data-ended="true"]{color:#ffe1a3}kbd{border:1px solid #50565d;border-bottom-width:3px;border-radius:4px;padding:2px 6px;color:#fff}#help{color:#b7bec5;line-height:2.3;font-size:14px}#touch{display:flex;flex-wrap:wrap;gap:7px}#touch button{min-width:48px;touch-action:none}#touch button.active{background:#46705b}#error{color:#ffc2ae;min-height:22px}@media(max-width:650px){#views{grid-template-columns:1fr 1fr}figure:first-child{grid-column:span 2;grid-row:auto}}
-#taskbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:0 0 14px;flex-wrap:wrap}#task{margin:0;color:#d8dde1;font-size:15px}#benchmark{border:1px solid #535961;border-radius:20px;padding:5px 12px;font-size:13px;white-space:nowrap;color:#c3c9cf;background:#24282d}#benchmark[data-state="pass"]{color:#a3efbc;background:#163e2b;border-color:#3c9264}#benchmark[data-state="fail"]{color:#ffc1bd;background:#472323;border-color:#ac5750}#benchmark[data-state="unavailable"]{color:#ffe1a3;background:#3e321d;border-color:#8e7445}#evaluate{border-color:#7c9c8b}#task-source{color:#aeb8c0;text-decoration:none;font-size:12px;margin-right:8px}
-nav{display:flex;align-items:center;gap:7px;flex-wrap:wrap}#scene-nav{padding:5px;background:#1b1e22;border-radius:10px;margin-bottom:9px;width:fit-content}#scene-nav button{border-color:transparent;background:transparent}#scene-nav button[aria-pressed="true"]{background:#343a40;color:#fff}#task-nav{margin-bottom:17px}#task-nav button{font-size:13px;padding:6px 12px;border-radius:20px;background:transparent}#task-nav button[aria-pressed="true"]{background:#214333;border-color:#5f9e7c;color:#b7efce}#task-hint{font-size:12px;color:#9da8b2;margin:-5px 0 13px;line-height:1.5}#evaluator-source{color:#aeb8c0;text-decoration:none;font-size:12px;margin-right:8px}
+:root{color-scheme:dark;--bg:#121416;--surface:#1d2125;--raised:#292f35;--text:#edf1f4;--muted:#b0bac3;--line:#78848e;--primary:#a3d8ff;--on-primary:#102a3d;--success:#a3efbc;--warning:#ffe1a3;--error:#ffc1bd;--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,sans-serif}main{max-width:1440px;margin:var(--s5) auto;padding:0 var(--s5);height:calc(100dvh - 48px);display:flex;flex-direction:column}main>*{flex-shrink:0}button,select,summary,a{-webkit-tap-highlight-color:transparent}button,select{font:inherit;color:inherit;background:var(--raised);border:1px solid var(--line);border-radius:8px;min-height:48px;padding:var(--s2) var(--s4);cursor:pointer}button{transition:background .12s,border-color .12s,transform .12s}button:hover:not(:disabled){background:#3c4650}button:active:not(:disabled){transform:translateY(1px)}button:disabled{opacity:.45;cursor:not-allowed}button:focus-visible,select:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid var(--primary);outline-offset:3px}a{color:var(--primary);text-underline-offset:3px}header{display:flex;align-items:center;gap:var(--s4);margin-bottom:var(--s4)}h1{font-size:20px;font-weight:650;margin:0}header .subtle{font-size:13px}#reset{margin-left:auto}.subtle{color:var(--muted)}#picker{display:flex;gap:var(--s5);align-items:center;flex-wrap:wrap;margin-bottom:var(--s4)}nav{display:flex;gap:var(--s1);flex-wrap:wrap}nav button{background:transparent;border-color:transparent}#scene-nav{background:var(--surface);border-radius:10px;padding:var(--s1)}#scene-nav button[aria-pressed="true"]{background:var(--raised);box-shadow:inset 0 -3px var(--primary)}#task-nav button{border:1px solid var(--line)}#task-nav button[aria-pressed="true"]{background:var(--primary);color:var(--on-primary);border-color:var(--primary);font-weight:650}#taskbar{display:flex;gap:var(--s4);align-items:center;justify-content:space-between;margin-bottom:var(--s2)}#task{margin:0;font-size:20px;font-weight:550}#result-actions{display:flex;align-items:center;gap:var(--s3);flex-shrink:0}#benchmark{border-radius:6px;padding:var(--s1) var(--s2);font-size:13px;color:var(--muted);white-space:nowrap}#benchmark[data-state="pass"]{color:var(--success);background:#163e2b}#benchmark[data-state="fail"]{color:var(--error);background:#472323}#benchmark[data-state="unavailable"]{color:var(--warning);background:#3e321d}#evaluate{border-color:var(--primary);color:var(--primary);background:transparent}details{font-size:13px;color:var(--muted);margin-bottom:var(--s3)}summary{cursor:pointer;width:fit-content;min-height:32px;padding:var(--s1) 0}#task-hint{margin:var(--s1) 0 var(--s2);max-width:80ch}details a{margin-right:var(--s4);display:inline-block;padding:var(--s1) 0}#trial-status{display:flex;gap:var(--s5);align-items:center;min-height:56px;padding:var(--s2) var(--s4);background:var(--surface);border-radius:8px;margin-bottom:var(--s3)}#status{flex:1;font-size:14px;font-variant-numeric:tabular-nums}#trial-status[data-tone="low"],#trial-status[data-tone="ended"]{color:var(--warning)}.budget{width:160px;flex-shrink:0;font-size:11px;color:var(--muted)}progress{appearance:none;display:block;width:100%;height:6px;border:0;border-radius:4px;overflow:hidden;margin-top:var(--s1);background:#424c55}progress::-webkit-progress-bar{background:#424c55}progress::-webkit-progress-value{background:var(--primary);transition:width .15s linear}progress::-moz-progress-bar{background:var(--primary)}[data-tone="low"] progress::-webkit-progress-value{background:var(--warning)}[data-tone="finished"] progress::-webkit-progress-value{background:var(--muted)}#error{color:var(--error);margin:0 0 var(--s3);padding:var(--s3) var(--s4);background:#472323;border-radius:8px}#error:empty{display:none}#views{display:grid;grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr;gap:var(--s3);flex:1;min-height:220px}figure{margin:0;min-height:0;position:relative;background:var(--surface);border-radius:8px;overflow:hidden}figure:first-child{grid-row:span 2}img{display:block;width:100%;height:100%;object-fit:contain}img:not([src]){visibility:hidden}figcaption{position:absolute;bottom:var(--s2);left:var(--s2);background:#121416e8;padding:var(--s1) var(--s2);border-radius:4px;font-size:12px}#empty-view{position:absolute;inset:0;display:grid;align-content:center;justify-items:center;gap:var(--s2);color:var(--muted);text-align:center;padding:var(--s5)}#empty-view[hidden]{display:none}main[data-loading="true"] #views{opacity:.6}#views{transition:opacity .15s}footer{display:flex;align-items:end;justify-content:space-between;gap:var(--s5);margin-top:var(--s4);flex-wrap:wrap}.control-group{display:flex;flex-direction:column;gap:var(--s1)}.control-group>span,.control-group>label{font-size:12px;color:var(--muted)}#touch{display:flex;gap:var(--s4);flex-wrap:wrap}.key-pair{display:flex;gap:var(--s1)}#touch button{min-width:48px;padding:var(--s2);touch-action:none;font-weight:600}#touch button.active{color:var(--on-primary);background:var(--primary);border-color:var(--primary)}#grip{min-width:184px}kbd{font:12px ui-monospace,monospace;border:1px solid currentColor;border-radius:4px;padding:2px 5px;margin-left:var(--s2)}#stop{background:transparent}#motion-note{font-size:12px;color:var(--muted);margin:var(--s2) 0 0}
+@media(max-width:900px){main{padding:0 var(--s4);margin:var(--s4) auto}#picker{gap:var(--s2)}footer{gap:var(--s3)}main{height:calc(100dvh - 32px)}}
+@media(max-width:600px){main{height:auto}header .subtle{display:none}#taskbar{align-items:start;flex-direction:column}#result-actions{width:100%;justify-content:space-between}#task{font-size:18px}#views{flex:none;height:340px;grid-template-columns:1fr 1fr;grid-template-rows:2fr 1fr}figure:first-child{grid-row:auto;grid-column:span 2}#trial-status{gap:var(--s2)}.budget{width:88px}#touch{gap:var(--s2)}footer{justify-content:start}#grip{min-width:0}}
+@media(prefers-reduced-motion:reduce){*,progress::-webkit-progress-value{transition:none!important}}
 </style>
 <main>
-<header><h1>ABC Sim <span style="color:#91dcb4;font-size:12px">LIVE</span></h1><select id="arm" aria-label="Arm"><option value="left">Left arm</option><option value="right">Right arm</option></select><button id="reset">Start</button></header>
-<nav id="scene-nav" aria-label="Scenes"></nav>
-<nav id="task-nav" aria-label="Tasks"></nav>
-<div id="taskbar"><p id="task">Start a trial to see its goal</p><div><a id="task-source" href="https://github.com/amazon-far/abc/blob/d0832d12651d1b260a652861a14648dc5f3660c7/abc_sim/task_eval/count_box.py" target="_blank" rel="noopener noreferrer" title="ABC's upstream task definitions">ABC tasks</a><a id="evaluator-source" target="_blank" rel="noopener noreferrer">Scoring</a><span id="benchmark" data-state="pending" role="status" aria-live="polite">Not evaluated</span></div></div>
-<p id="task-hint"></p>
-<div id="views"><figure><img id="top" alt="Overhead camera"><figcaption>Overhead</figcaption></figure><figure><img id="left" alt="Left wrist camera"><figcaption>Left wrist</figcaption></figure><figure><img id="right" alt="Right wrist camera"><figcaption>Right wrist</figcaption></figure></div>
-<footer><span id="status" role="status" aria-live="polite">Start to play</span><button id="grip" disabled>Close gripper · Space</button><button id="evaluate" disabled title="End this attempt and run Inspect scoring">Evaluate</button></footer>
-<div id="help"><kbd>W</kbd>/<kbd>S</kbd> forward / back &nbsp; <kbd>A</kbd>/<kbd>D</kbd> left / right &nbsp; <kbd>↑</kbd>/<kbd>↓</kbd> up / down &nbsp; <kbd>←</kbd>/<kbd>→</kbd> rotate &nbsp; <kbd>Esc</kbd> stop</div>
-<div id="touch"><button data-key="w" aria-label="Forward">W</button><button data-key="s" aria-label="Back">S</button><button data-key="a" aria-label="Left">A</button><button data-key="d" aria-label="Right">D</button><button data-key="ArrowUp" aria-label="Up">↑</button><button data-key="ArrowDown" aria-label="Down">↓</button><button data-key="ArrowLeft" aria-label="Rotate left">←</button><button data-key="ArrowRight" aria-label="Rotate right">→</button></div><p id="error" role="alert"></p>
+<header><h1>ABC Sim</h1><span class="subtle">Local simulation</span><button id="reset">Start</button></header>
+<div id="picker"><nav id="scene-nav" aria-label="Scenes"></nav><nav id="task-nav" aria-label="Tasks"></nav></div>
+<div id="taskbar"><h2 id="task">Choose a task to begin</h2><div id="result-actions"><span id="benchmark" data-state="pending" role="status" aria-live="polite">Not evaluated</span><button id="evaluate" disabled title="Finish this attempt and score the result">Evaluate</button></div></div>
+<details><summary>Task rules</summary><p id="task-hint">Choose a scene and task, then press Start. Switching tasks saves and ends the current attempt.</p><a id="task-source" href="https://github.com/amazon-far/abc/blob/d0832d12651d1b260a652861a14648dc5f3660c7/abc_sim/task_specs.py" target="_blank" rel="noopener noreferrer">ABC task</a><a id="evaluator-source" target="_blank" rel="noopener noreferrer">Scoring rules</a></details>
+<div id="trial-status" data-tone="idle"><span id="status" role="status" aria-live="polite">Press Start to play</span><div class="budget">Step budget<progress id="budget" max="1000" value="1000" aria-label="1,000-step budget"></progress></div></div>
+<p id="error" role="alert"></p>
+<div id="views"><figure><img id="top" alt="Overhead camera"><div id="empty-view"><strong>Your robot workspace</strong><span>Press Start or choose another task.</span></div><figcaption>Overhead</figcaption></figure><figure><img id="left" alt="Left wrist camera"><figcaption>Left wrist</figcaption></figure><figure><img id="right" alt="Right wrist camera"><figcaption>Right wrist</figcaption></figure></div>
+<footer>
+<div class="control-group"><label for="arm">Control arm</label><select id="arm"><option value="left">Left arm</option><option value="right">Right arm</option></select></div>
+<div id="touch" role="group" aria-label="Movement controls">
+<div class="control-group"><span>Forward / back</span><div class="key-pair"><button data-key="w" aria-label="Forward">W</button><button data-key="s" aria-label="Back">S</button></div></div>
+<div class="control-group"><span>Left / right</span><div class="key-pair"><button data-key="a" aria-label="Left">A</button><button data-key="d" aria-label="Right">D</button></div></div>
+<div class="control-group"><span>Up / down</span><div class="key-pair"><button data-key="ArrowUp" aria-label="Up">↑</button><button data-key="ArrowDown" aria-label="Down">↓</button></div></div>
+<div class="control-group"><span>Rotate</span><div class="key-pair"><button data-key="ArrowLeft" aria-label="Rotate left">←</button><button data-key="ArrowRight" aria-label="Rotate right">→</button></div></div>
+</div>
+<button id="grip" disabled>Close gripper · Space</button><button id="stop" title="Stop sending commands; an in-flight move finishes">Stop <kbd>Esc</kbd></button>
+</footer>
+<p id="motion-note">Hold keys or buttons to move. Physics pauses between commands.</p>
 </main>
 <script>
 const $=id=>document.getElementById(id), keys=new Set();
@@ -24,20 +36,38 @@ let state=null,busy=false,resetting=false,gripPending=null;
 let closed={left:false,right:false};
 let scenes=[],selectedScene='opaque_box',selectedTask='count_one_into_opaque_box',navKey='';
 function drawNav(){
- const key=selectedScene+'/'+selectedTask;if(navKey===key)return;navKey=key;
+ const key=selectedScene+'/'+selectedTask;if(navKey===key)return;navKey=key;const focused=document.activeElement?.closest('nav button')?.textContent;
  $('scene-nav').replaceChildren();$('task-nav').replaceChildren();
  function button(parent,label,selected,action){const b=document.createElement('button');b.textContent=label;b.setAttribute('aria-pressed',String(selected));b.onclick=action;$(parent).append(b);}
  for(const scene of scenes)button('scene-nav',scene.label,scene.id===selectedScene,()=>{if(scene.id!==selectedScene)reset(scene.tasks[0].id);});
  const scene=scenes.find(s=>s.id===selectedScene);for(const task of scene?.tasks??[])button('task-nav',task.label,task.id===selectedTask,()=>{if(task.id!==selectedTask)reset(task.id);});
+ if(focused){const match=[...document.querySelectorAll('nav button')].find(b=>b.textContent===focused);match?.focus();}
 }
 function stop(){keys.clear();gripPending=null;document.querySelectorAll('[data-key]').forEach(b=>b.classList.remove('active'));}
-function updateActions(){const blocked=busy||resetting||!scenes.length;document.querySelectorAll("nav button").forEach(b=>b.disabled=blocked);$('reset').disabled=blocked;$('evaluate').disabled=blocked||state?.status!=='active';$('grip').disabled=blocked||state?.status!=='active';}
+function updateActions(){
+ const blocked=busy||resetting||!scenes.length;
+ document.querySelectorAll('nav button').forEach(b=>b.disabled=blocked);
+ document.querySelectorAll('[data-key]').forEach(b=>b.disabled=resetting||state?.status!=='active');
+ $('arm').disabled=blocked;$('reset').disabled=blocked;
+ $('evaluate').disabled=blocked||state?.status!=='active';$('grip').disabled=blocked||state?.status!=='active';
+ document.querySelector('main').dataset.loading=String(resetting);
+ $('views').setAttribute('aria-busy',String(resetting));
+}
+function budgetState(s){
+ const remaining=Math.max(0,1000-(s?.physics_steps??0));
+ return {remaining,tone:!s?'idle':s.status!=='active'?(remaining===0?'ended':'finished'):remaining<=100?'low':'ready',label:s?`${remaining} steps left`:'1,000-step budget'};
+}
+function robotHotkey(e){
+ if(e.metaKey||e.ctrlKey||e.altKey||e.target.closest('input,textarea,select,[contenteditable="true"]'))return false;
+ return !(e.code==='Space'&&e.target.closest('button,summary,a'));
+}
+function syncKeys(){document.querySelectorAll('[data-key]').forEach(b=>b.classList.toggle('active',keys.has(b.dataset.key)));}
 function playStatus(s){
  if(s.status==='active')return `Ready · ${s.sim_time.toFixed(1)}s · ${Math.max(0,1000-s.physics_steps)} steps left`;
  if(s.physics_steps>=1000)return 'Step limit reached · Reset to play again';
  return `Finished · ${s.sim_time.toFixed(1)}s · Reset to play again`;
 }
-function render(s){state=s;selectedScene=s.scene_id;selectedTask=s.task_id;drawNav();const detail=s.task_details;$("task-source").textContent="ABC task";$("task-source").href=detail.source_url;$("evaluator-source").href=detail.evaluator_url;$("task-hint").textContent=detail.hint;for(const name of ['top','left','right'])$(name).src=s.images[name];$('status').textContent=playStatus(s);$('status').dataset.ended=String(s.status!=='active');$('reset').textContent='Reset';$('task').textContent=s.instruction;const score=s.benchmark??{state:'pending',label:'Not evaluated'};$('benchmark').dataset.state=score.state;$('benchmark').textContent=score.label;updateActions();localStorage.setItem('abc-play-session',s.session_id);}
+function render(s){state=s;selectedScene=s.scene_id;selectedTask=s.task_id;drawNav();const detail=s.task_details;$("task-source").textContent="ABC task";$("task-source").href=detail.source_url;$("evaluator-source").href=detail.evaluator_url;$("task-hint").textContent=detail.hint;for(const name of ['top','left','right'])$(name).src=s.images[name];$('status').textContent=playStatus(s);const budget=budgetState(s);$('trial-status').dataset.tone=budget.tone;$('budget').value=budget.remaining;$('budget').setAttribute('aria-label',budget.label);$('budget').title=budget.label;$('empty-view').hidden=true;if(s.status!=='active')stop();$('reset').textContent='Reset';$('task').textContent=s.instruction;const score=s.benchmark??{state:'pending',label:'Not evaluated'};$('benchmark').dataset.state=score.state;$('benchmark').textContent=score.label;updateActions();localStorage.setItem('abc-play-session',s.session_id);}
 
 function gripLabel(){$('grip').textContent=(closed[$('arm').value]?'Open':'Close')+' gripper · Space';}
 async function call(tool,args){
@@ -66,20 +96,21 @@ async function tick(){
  if(busy||resetting||!state||state.status!=='active'||(!keys.size&&!gripPending))return;
  const direction=[0,0,0,0];for(const key of keys)mapping[key]?.forEach((v,i)=>direction[i]+=v);
  const norm=Math.max(1,Math.hypot(...direction.slice(0,3)));
- const grip=gripPending;gripPending=null;busy=true;updateActions();$('error').textContent='';
+ const grip=gripPending;gripPending=null;busy=true;updateActions();$('error').textContent='';$('status').textContent='Moving…';
  try{render(await call('jog_arm',{session_id:state.session_id,request_id:crypto.randomUUID(),expected_sequence:state.sequence,translation:direction.slice(0,3).map(v=>v*.018/norm),yaw:direction[3]*.10,gripper:grip?.value??null,arm:grip?.arm??$('arm').value,steps:Math.min(5,1000-state.physics_steps)}));}
- catch(e){stop();$('error').textContent=e.message;try{render(await call('observe',{session_id:state.session_id}));}catch{} }
+ catch(e){stop();$('error').textContent=e.message;try{render(await call('observe',{session_id:state.session_id}));}catch{} $('status').textContent='Control paused · '+e.message;}
  finally{busy=false;updateActions();}
 }
-window.addEventListener('keydown',e=>{if(e.target instanceof HTMLSelectElement)return;const key=e.key.length===1?e.key.toLowerCase():e.key;if(key==='Escape'){stop();gripPending=null;e.preventDefault();return;}if(mapping[key]){e.preventDefault();keys.add(key);tick();}if(e.code==='Space'){e.preventDefault();if(!e.repeat)toggleGrip();}});
-window.addEventListener('keyup',e=>{keys.delete(e.key.length===1?e.key.toLowerCase():e.key);});
+window.addEventListener('keydown',e=>{if(!robotHotkey(e))return;const key=e.key.length===1?e.key.toLowerCase():e.key;if(key==='Escape'){stop();gripPending=null;e.preventDefault();return;}if(mapping[key]){e.preventDefault();keys.add(key);syncKeys();tick();}if(e.code==='Space'){e.preventDefault();if(!e.repeat)toggleGrip();}});
+window.addEventListener('keyup',e=>{keys.delete(e.key.length===1?e.key.toLowerCase():e.key);syncKeys();});
 window.addEventListener('blur',stop);document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
-for(const b of document.querySelectorAll('[data-key]')){b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys.add(b.dataset.key);b.classList.add('active');tick();});for(const type of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(type,()=>{keys.delete(b.dataset.key);b.classList.remove('active');});}
-$('reset').onclick=()=>reset();$('evaluate').onclick=evaluate;$('grip').onclick=toggleGrip;$('arm').onchange=()=>{stop();$('arm').blur();gripLabel();};setInterval(tick,60);
+for(const b of document.querySelectorAll('[data-key]')){b.addEventListener('click',async e=>{if(e.detail!==0)return;keys.add(b.dataset.key);syncKeys();await tick();keys.delete(b.dataset.key);syncKeys();});b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys.add(b.dataset.key);b.classList.add('active');tick();});for(const type of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(type,()=>{keys.delete(b.dataset.key);b.classList.remove('active');});}
+$('stop').onclick=stop;$('reset').onclick=()=>reset();$('evaluate').onclick=evaluate;$('grip').onclick=toggleGrip;$('arm').onchange=()=>{stop();$('arm').blur();gripLabel();};setInterval(tick,60);
 (async()=>{
  updateActions();
  try{const response=await fetch('/play/catalog');if(!response.ok)throw new Error('Could not load scenes');scenes=(await response.json()).scenes;drawNav();updateActions();}
- catch(e){$('error').textContent=e.message;return;}
+ catch(e){$('error').textContent='Could not load tasks. Check the local server, then reload.';$('status').textContent='Disconnected';return;}
  const id=localStorage.getItem('abc-play-session');if(id){try{render(await call('observe',{session_id:id}));closed={left:state.joint_pos[6]<.5,right:state.joint_pos[13]<.5};gripLabel();}catch{localStorage.removeItem('abc-play-session');}}
 })();
-</script></html>
+</script>
+</html>
