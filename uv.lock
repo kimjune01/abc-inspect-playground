@@ -14,6 +14,7 @@ dependencies = [
     { name = "numpy" },
     { name = "pillow" },
     { name = "tyro" },
+    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -33,6 +34,7 @@ requires-dist = [
     { name = "numpy" },
     { name = "pillow" },
     { name = "tyro" },
+    { name = "uvicorn", specifier = ">=0.31,<1" },
 ]
 
 [package.metadata.requires-dev]

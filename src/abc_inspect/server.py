@@ -42,19 +42,10 @@ def create_server(log_dir: Path, port: int = 8876):
     starts: dict[str, tuple[int, int, str]] = {}
     start_lock = asyncio.Lock()
 
-    @asynccontextmanager
-    async def lifespan(server):
-        try:
-            yield {}
-        finally:
-            for session in sessions.values():
-                await asyncio.to_thread(session.close)
-
     mcp = FastMCP(
         "ABC Inspect prototype",
         host="127.0.0.1",
         port=port,
-        lifespan=lifespan,
         instructions=(
             "Local simulation only. One active trial. Camera RGB + 14 joint values; "
             "left 6 radians + gripper, right 6 radians + gripper; gripper 0 closed, 1 open. "
@@ -133,7 +124,7 @@ def create_server(log_dir: Path, port: int = 8876):
         )
         return content(result)
 
-    return mcp
+    return mcp, sessions
 
 
 def main():
@@ -142,8 +133,31 @@ def main():
     parser.add_argument("--port", type=int, default=8876)
     parser.add_argument("--log-dir", type=Path, default=Path("outputs/trials"))
     args = parser.parse_args()
-    server = create_server(args.log_dir.resolve(), args.port)
-    server.run(transport=args.transport)
+    server, sessions = create_server(args.log_dir.resolve(), args.port)
+    if args.transport == "streamable-http":
+        import uvicorn
+
+        app = server.streamable_http_app()
+        transport_lifespan = app.router.lifespan_context
+
+        @asynccontextmanager
+        async def app_lifespan(app):
+            async with transport_lifespan(app):
+                try:
+                    yield
+                finally:
+                    for session in sessions.values():
+                        await asyncio.to_thread(session.close)
+
+        # HTTP connections may come and go; robot sessions live until server shutdown.
+        app.router.lifespan_context = app_lifespan
+        uvicorn.run(app, host="127.0.0.1", port=args.port)
+    else:
+        try:
+            server.run(transport="stdio")
+        finally:
+            for session in sessions.values():
+                session.close()
 
 
 if __name__ == "__main__":
