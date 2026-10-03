@@ -16,6 +16,7 @@ from typing import Any
 import numpy as np
 
 from abc_inspect.adapter import TASK, AbcEmbodiment, AbcSuccessScorer
+from abc_inspect.catalog import SUPPORTED_TASKS, task_details
 
 
 def _run_trial(commands, responses, directory: str, seed: int, max_steps: int, task_name: str):
@@ -30,7 +31,9 @@ def _run_trial(commands, responses, directory: str, seed: int, max_steps: int, t
     arm = None
     started = time.monotonic()
     try:
-        arm = AbcEmbodiment(task=task_name)
+        # Letter faces need more pixels than the coarse counting scene.
+        dimensions = {"width": 640, "height": 480} if task_name.startswith("spell_") else {}
+        arm = AbcEmbodiment(task=task_name, **dimensions)
         from abc_inspect.teleop import Teleop
 
         teleop = Teleop(arm)
@@ -50,6 +53,9 @@ def _run_trial(commands, responses, directory: str, seed: int, max_steps: int, t
                 wall_elapsed_s=time.monotonic() - started,
                 control_hz=arm.info.control_hz,
                 instruction=obs.instruction,
+                task_id=task_name,
+                task_rules=task_details(task_name)["hint"],
+                scene_id=task_details(task_name)["scene_id"],
                 tool_pose=teleop.poses(),
                 limits={
                     "low": low.tolist(),
@@ -140,7 +146,7 @@ class Session:
         timeout: float = 60,
         task: str = TASK,
     ):
-        if task not in (TASK, "count_into_opaque_box"):
+        if task not in SUPPORTED_TASKS:
             raise ValueError("Unsupported task")
         if not 1 <= max_steps <= 1000:
             raise ValueError("max_steps must be between 1 and 1000")

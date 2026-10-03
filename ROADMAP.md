@@ -14,10 +14,11 @@ using the next stage to draw research conclusions.
 - Chrome keyboard control: XYZ translation, yaw, gripper, arm selection, and reset.
 - Five shared MCP tools with serialized commands, sequence checks, and safe retries.
 - Native Inspect rollouts, action/frame records, and simulator-based scoring.
+- Two scene tabs with six documented ABC tasks and an explicit Evaluate button.
 - One successful scripted cube pick-and-place with privileged initial geometry.
 - A TUI subagent motion trial through a real MCP protocol client.
 
-The 25-test suite validates integration behavior. It does not establish general
+The 32-test suite validates integration behavior. It does not establish general
 manipulation ability, low-latency teleoperation, or benchmark validity.
 [DERISK.md](DERISK.md) preserves the earlier integration measurements; its list of
 unfinished features predates the live controls and scripted baseline.
@@ -33,9 +34,9 @@ unfinished features predates the live controls and scripted baseline.
   physics/render time, image encoding, and transport time before optimizing.
 - Verify held keys, release, Escape, lost focus, errors, and reconnects do not queue
   unintended motion. Keep the interface small.
-- Make repeated reset/play practical without a manual restart after eight trials;
-  define log retention and metadata eviction. Retry images are now stored on disk,
-  and finished trials release worker resources.
+- Define disk-log retention. Navigation now keeps eight recent sessions and
+  permits 256 starts per server run; retry images live on disk, and finished
+  trials release worker resources.
 
 **Gate:** record manual pick-and-place across a declared small seed set, report
 successes and failures, and measure stop behavior and latency. Do not require a
@@ -76,8 +77,8 @@ and agent failures; this candidate is not yet a settled benchmark design.
 - Decide whether the primary measurement is perception, planning, recovery, or
   motor control. State what the IK layer solves on the agent's behalf.
 - Specify each benchmark's instruction, scene, target, and scorer. The browser now
-  shows ABC's sampled counting directive and its final Inspect score; additional
-  tasks need the same alignment.
+  aligns six ABC task directives with their native evaluators and final Inspect
+  scores; future tasks need the same alignment.
 - Specify exactly which cameras, robot state, and tools the agent receives.
 - Fix physics and action budgets, reset semantics, seeds, and termination rules.
   Track wall time separately because simulation pauses during reasoning.

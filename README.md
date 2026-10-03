@@ -40,16 +40,25 @@ each command, and physics pauses between commands. Translation uses world axes;
 the wrist retains its tilt. Pitch/roll controls are not implemented.
 
 Trials end after 1,000 physics ticks. Reset to continue; restart the server after
-eight trials. After restarting, refresh the page and click Start.
+256 starts. The eight most recent trials remain available through the API; older
+logs stay on disk. After restarting, refresh the page and click Start.
 
-The goal above the cameras comes from ABC's existing
-[`count_into_opaque_box` task](https://github.com/amazon-far/abc/blob/d0832d12651d1b260a652861a14648dc5f3660c7/abc_sim/task_eval/count_box.py).
-Follow the displayed directive: the box must contain exactly the required number
-of eligible objects and no ineligible objects. **Evaluate** ends the attempt and
-runs Inspect's scorer: grey means unscored, green **Pass · 1/1**, red **Fail · 0/1**.
-An unavailable score is amber. Scores appear only after the trial ends; they do
-not reveal hidden box contents during play. This uses ABC's task and evaluator,
-not an official RoboDojo evaluation.
+Choose a scene and task in the navigation bar. Switching saves the current attempt
+and starts a fresh one.
+
+| Scene | Tasks | Success criterion |
+| --- | --- | --- |
+| Opaque box | One, two, or three objects | Exactly that many objects inside, through the flap |
+| Letter blocks | CAT, DOG, FISH | Correct letters in a tight left-to-right row on the table, faces up |
+
+**Evaluate** ends the attempt without advancing physics. Grey means unscored,
+green **Pass · 1/1**, red **Fail · 0/1**, amber unavailable. Let objects finish falling
+before evaluating. Scores appear only after the trial ends.
+
+These are ABC's documented task variants and native evaluators. The pinned ABC
+randomizer overrides fixed counting goals, so our adapter restores the declared
+one/two/three-object directive through its evaluator configuration hook. Geometry
+and scoring logic are unchanged.
 
 ## Agent control
 
@@ -84,7 +93,9 @@ uv run python -m abc_inspect.client finish_trial \
 | `move_joints` | Apply 14 absolute joint/gripper targets |
 | `finish_trial` | Finish without moving; return metrics and log path |
 
-- **Tasks:** `count_into_opaque_box` (browser) or `put_plastic_bottles_in_bin` (MCP default).
+- **Tasks:** `count_one_into_opaque_box`, `count_two_into_opaque_box`,
+  `count_three_into_opaque_box`, `spell_cat`, `spell_dog`, `spell_fish`; also
+  `count_into_opaque_box` (sampled goal) and `put_plastic_bottles_in_bin` (MCP default).
 - **Observations:** cameras, robot joints and grasp-site poses, limits, sequence,
   and time. No live object poses or task scores.
 - **Jog limits:** translation ≤0.026 m, yaw ±0.12 rad. Gripper: `0` closed, `1` open,
@@ -130,13 +141,39 @@ uv run ruff check src tests
 uv run mypy src/abc_inspect
 ```
 
-The 25 tests cover physics, cameras, resets, scoring, retries, concurrency,
-transports, keyboard-control endpoints, and resource cleanup. Source lives in
+The 32 tests cover physics, cameras, resets, scoring, retries, concurrency,
+transports, scene/task switching, keyboard-control endpoints, and resource cleanup. Source lives in
 [`src/abc_inspect/`](src/abc_inspect/); local artifacts in `outputs/` are ignored.
 
-[ABC Sim](https://github.com/amazon-far/abc) and
-[Inspect Robots](https://github.com/robocurve/inspect-robots) are pinned in
-`scripts/bootstrap.sh` and `pyproject.toml`. Python dependencies are locked in `uv.lock`.
+## Ideas and attribution
+
+This playground connects existing robotics and evaluation work:
+
+- **[ABC / ABC Sim](https://abc.bot/)** — the bimanual robot environment, cameras,
+  objects, task definitions, and success evaluators. All six browser tasks come
+  from the pinned [ABC task catalog](https://github.com/amazon-far/abc/blob/d0832d12651d1b260a652861a14648dc5f3660c7/abc_sim/task_specs.py),
+  using its [counting](https://github.com/amazon-far/abc/blob/d0832d12651d1b260a652861a14648dc5f3660c7/abc_sim/task_eval/count_box.py)
+  and [spelling](https://github.com/amazon-far/abc/blob/d0832d12651d1b260a652861a14648dc5f3660c7/abc_sim/task_eval/spell.py) scorers.
+- **[Inspect Robots](https://docs.inspectrobots.org/)** — separating policy,
+  embodiment, task, and scorer; the actual rollout loop and evaluation records
+  used here. The Evaluate button ends that rollout and invokes its scorer.
+- **[RoboDojo](https://arxiv.org/abs/2607.04434)** — inspiration for a shared suite
+  of manipulation tasks and reproducible policy comparisons. This playground
+  uses ABC tasks; it does not run or reproduce RoboDojo's official benchmark.
+- **[MuJoCo](https://mujoco.org/)** and **[Mink](https://github.com/kevinzakka/mink)** —
+  physical simulation and inverse kinematics for Cartesian keyboard/agent control.
+- **[Model Context Protocol](https://modelcontextprotocol.io/)** — the tool interface
+  connecting TUI agents to a persistent simulator. Related implementations are
+  credited in [DERISK.md](DERISK.md#related-work-to-reuse).
+
+Our contribution is the ABC–Inspect adapter, queued external policy, session/retry
+protocol, and shared browser/MCP controls. ABC and Inspect are pinned in
+`scripts/bootstrap.sh` and `pyproject.toml`; Python dependencies are locked in `uv.lock`.
+
+The letter-block artwork is by [Cherryvania](https://sketchfab.com/3d-models/wooden-alphabet-blocks-5f8dfddbbc7d468784ca014378f7e5fe),
+under CC BY 4.0, distributed through ABC. See ABC's
+[asset credits](https://github.com/amazon-far/abc/blob/d0832d12651d1b260a652861a14648dc5f3660c7/README.md#simulator-asset-licenses)
+for other upstream models and licenses.
 
 ## License
 

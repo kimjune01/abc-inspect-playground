@@ -4,10 +4,14 @@
 <style>
 *{box-sizing:border-box}body{margin:0;background:#121416;color:#e9edf0;font:15px system-ui,sans-serif}main{max-width:1200px;margin:28px auto;padding:0 20px}header,footer{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:18px 0}h1{font-size:20px;margin:0 auto 0 0;font-weight:550}button,select{font:inherit;color:inherit;background:#292d32;border:1px solid #4b5158;border-radius:7px;padding:8px 14px;cursor:pointer}button:disabled{opacity:.45;cursor:wait}button:focus-visible,select:focus-visible{outline:2px solid #8ad9b2}#views{display:grid;grid-template-columns:2fr 1fr;gap:12px}figure{margin:0;position:relative;background:#202429;border-radius:10px;overflow:hidden}figure:first-child{grid-row:span 2}img{display:block;width:100%;aspect-ratio:4/3;object-fit:contain}figcaption{position:absolute;bottom:10px;left:12px;background:#121416b0;padding:3px 7px;border-radius:4px;color:#ddd;font-size:12px}#status{color:#91dcb4;margin-right:auto}kbd{border:1px solid #50565d;border-bottom-width:3px;border-radius:4px;padding:2px 6px;color:#fff}#help{color:#b7bec5;line-height:2.3;font-size:14px}#touch{display:flex;flex-wrap:wrap;gap:7px}#touch button{min-width:48px;touch-action:none}#touch button.active{background:#46705b}#error{color:#ffc2ae;min-height:22px}@media(max-width:650px){#views{grid-template-columns:1fr 1fr}figure:first-child{grid-column:span 2;grid-row:auto}}
 #taskbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:0 0 14px;flex-wrap:wrap}#task{margin:0;color:#d8dde1;font-size:15px}#benchmark{border:1px solid #535961;border-radius:20px;padding:5px 12px;font-size:13px;white-space:nowrap;color:#c3c9cf;background:#24282d}#benchmark[data-state="pass"]{color:#a3efbc;background:#163e2b;border-color:#3c9264}#benchmark[data-state="fail"]{color:#ffc1bd;background:#472323;border-color:#ac5750}#benchmark[data-state="unavailable"]{color:#ffe1a3;background:#3e321d;border-color:#8e7445}#evaluate{border-color:#7c9c8b}#task-source{color:#aeb8c0;text-decoration:none;font-size:12px;margin-right:8px}
+nav{display:flex;align-items:center;gap:7px;flex-wrap:wrap}#scene-nav{padding:5px;background:#1b1e22;border-radius:10px;margin-bottom:9px;width:fit-content}#scene-nav button{border-color:transparent;background:transparent}#scene-nav button[aria-pressed="true"]{background:#343a40;color:#fff}#task-nav{margin-bottom:17px}#task-nav button{font-size:13px;padding:6px 12px;border-radius:20px;background:transparent}#task-nav button[aria-pressed="true"]{background:#214333;border-color:#5f9e7c;color:#b7efce}#task-hint{font-size:12px;color:#9da8b2;margin:-5px 0 13px;line-height:1.5}#evaluator-source{color:#aeb8c0;text-decoration:none;font-size:12px;margin-right:8px}
 </style>
 <main>
 <header><h1>ABC Sim <span style="color:#91dcb4;font-size:12px">LIVE</span></h1><select id="arm" aria-label="Arm"><option value="left">Left arm</option><option value="right">Right arm</option></select><button id="reset">Start</button></header>
-<div id="taskbar"><p id="task">Start a trial to see its goal</p><div><a id="task-source" href="https://github.com/amazon-far/abc/blob/d0832d12651d1b260a652861a14648dc5f3660c7/abc_sim/task_eval/count_box.py" target="_blank" rel="noopener noreferrer" title="ABC Sim's original counting task evaluator">ABC task</a><span id="benchmark" data-state="pending" role="status" aria-live="polite">Not evaluated</span></div></div>
+<nav id="scene-nav" aria-label="Scenes"></nav>
+<nav id="task-nav" aria-label="Tasks"></nav>
+<div id="taskbar"><p id="task">Start a trial to see its goal</p><div><a id="task-source" href="https://github.com/amazon-far/abc/blob/d0832d12651d1b260a652861a14648dc5f3660c7/abc_sim/task_eval/count_box.py" target="_blank" rel="noopener noreferrer" title="ABC's upstream task definitions">ABC tasks</a><a id="evaluator-source" target="_blank" rel="noopener noreferrer">Scoring</a><span id="benchmark" data-state="pending" role="status" aria-live="polite">Not evaluated</span></div></div>
+<p id="task-hint"></p>
 <div id="views"><figure><img id="top" alt="Overhead camera"><figcaption>Overhead</figcaption></figure><figure><img id="left" alt="Left wrist camera"><figcaption>Left wrist</figcaption></figure><figure><img id="right" alt="Right wrist camera"><figcaption>Right wrist</figcaption></figure></div>
 <footer><span id="status">Start to play</span><button id="grip" disabled>Close gripper · Space</button><button id="evaluate" disabled title="End this attempt and run Inspect scoring">Evaluate</button></footer>
 <div id="help"><kbd>W</kbd>/<kbd>S</kbd> forward / back &nbsp; <kbd>A</kbd>/<kbd>D</kbd> left / right &nbsp; <kbd>↑</kbd>/<kbd>↓</kbd> up / down &nbsp; <kbd>←</kbd>/<kbd>→</kbd> rotate &nbsp; <kbd>Esc</kbd> stop</div>
@@ -18,9 +22,17 @@ const $=id=>document.getElementById(id), keys=new Set();
 const mapping={w:[1,0,0,0],s:[-1,0,0,0],a:[0,1,0,0],d:[0,-1,0,0],ArrowUp:[0,0,1,0],ArrowDown:[0,0,-1,0],ArrowLeft:[0,0,0,1],ArrowRight:[0,0,0,-1]};
 let state=null,busy=false,resetting=false,gripPending=null;
 let closed={left:false,right:false};
+let scenes=[],selectedScene='opaque_box',selectedTask='count_one_into_opaque_box',navKey='';
+function drawNav(){
+ const key=selectedScene+'/'+selectedTask;if(navKey===key)return;navKey=key;
+ $('scene-nav').replaceChildren();$('task-nav').replaceChildren();
+ function button(parent,label,selected,action){const b=document.createElement('button');b.textContent=label;b.setAttribute('aria-pressed',String(selected));b.onclick=action;$(parent).append(b);}
+ for(const scene of scenes)button('scene-nav',scene.label,scene.id===selectedScene,()=>{if(scene.id!==selectedScene)reset(scene.tasks[0].id);});
+ const scene=scenes.find(s=>s.id===selectedScene);for(const task of scene?.tasks??[])button('task-nav',task.label,task.id===selectedTask,()=>{if(task.id!==selectedTask)reset(task.id);});
+}
 function stop(){keys.clear();gripPending=null;document.querySelectorAll('[data-key]').forEach(b=>b.classList.remove('active'));}
-function updateActions(){const blocked=busy||resetting;$('reset').disabled=blocked;$('evaluate').disabled=blocked||state?.status!=='active';$('grip').disabled=blocked||state?.status!=='active';}
-function render(s){state=s;for(const name of ['top','left','right'])$(name).src=s.images[name];$('status').textContent=s.status==='active'?`Ready · ${s.sim_time.toFixed(1)}s`:`Finished · ${s.sim_time.toFixed(1)}s`;$('reset').textContent='Reset';$('task').textContent=s.instruction;const score=s.benchmark??{state:'pending',label:'Not evaluated'};$('benchmark').dataset.state=score.state;$('benchmark').textContent=score.label;updateActions();localStorage.setItem('abc-play-session',s.session_id);}
+function updateActions(){const blocked=busy||resetting||!scenes.length;document.querySelectorAll("nav button").forEach(b=>b.disabled=blocked);$('reset').disabled=blocked;$('evaluate').disabled=blocked||state?.status!=='active';$('grip').disabled=blocked||state?.status!=='active';}
+function render(s){state=s;selectedScene=s.scene_id;selectedTask=s.task_id;drawNav();const detail=s.task_details;$("task-source").textContent="ABC task";$("task-source").href=detail.source_url;$("evaluator-source").href=detail.evaluator_url;$("task-hint").textContent=detail.hint;for(const name of ['top','left','right'])$(name).src=s.images[name];$('status').textContent=s.status==='active'?`Ready · ${s.sim_time.toFixed(1)}s`:`Finished · ${s.sim_time.toFixed(1)}s`;$('reset').textContent='Reset';$('task').textContent=s.instruction;const score=s.benchmark??{state:'pending',label:'Not evaluated'};$('benchmark').dataset.state=score.state;$('benchmark').textContent=score.label;updateActions();localStorage.setItem('abc-play-session',s.session_id);}
 
 function gripLabel(){$('grip').textContent=(closed[$('arm').value]?'Open':'Close')+' gripper · Space';}
 async function call(tool,args){
@@ -31,11 +43,11 @@ async function call(tool,args){
   catch(e){if(e instanceof TypeError&&attempt===0)continue;throw e;}
  }
 }
-async function reset(){
- if(busy||resetting)return;resetting=true;stop();gripPending=null;updateActions();$('error').textContent='';$('status').textContent='Starting…';
- try{if(state?.status==='active')await call('finish_trial',{session_id:state.session_id,request_id:crypto.randomUUID(),expected_sequence:state.sequence,reason:'browser_reset'});
- render(await call('start_trial',{request_id:crypto.randomUUID(),seed:7,max_steps:1000,task:'count_into_opaque_box'}));closed={left:false,right:false};gripLabel();}
- catch(e){$('error').textContent=e.message;$('status').textContent='Could not start';}
+async function reset(taskId=selectedTask){
+ if(busy||resetting||!scenes.length)return;resetting=true;stop();gripPending=null;updateActions();$('error').textContent='';$('status').textContent='Starting…';
+ try{if(state?.status==='active')state=await call('finish_trial',{session_id:state.session_id,request_id:crypto.randomUUID(),expected_sequence:state.sequence,reason:'browser_reset'});
+ render(await call('start_trial',{request_id:crypto.randomUUID(),seed:7,max_steps:1000,task:taskId}));closed={left:false,right:false};gripLabel();}
+ catch(e){if(state)render(state);$('error').textContent=e.message;$('status').textContent='Could not start';}
  finally{resetting=false;updateActions();}
 }
 async function evaluate(){
@@ -58,6 +70,11 @@ window.addEventListener('keydown',e=>{if(e.target instanceof HTMLSelectElement)r
 window.addEventListener('keyup',e=>{keys.delete(e.key.length===1?e.key.toLowerCase():e.key);});
 window.addEventListener('blur',stop);document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
 for(const b of document.querySelectorAll('[data-key]')){b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys.add(b.dataset.key);b.classList.add('active');tick();});for(const type of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(type,()=>{keys.delete(b.dataset.key);b.classList.remove('active');});}
-$('reset').onclick=reset;$('evaluate').onclick=evaluate;$('grip').onclick=toggleGrip;$('arm').onchange=()=>{stop();$('arm').blur();gripLabel();};setInterval(tick,60);
-(async()=>{const id=localStorage.getItem('abc-play-session');if(id){try{render(await call('observe',{session_id:id}));closed={left:state.joint_pos[6]<.5,right:state.joint_pos[13]<.5};gripLabel();}catch{localStorage.removeItem('abc-play-session');}}})();
+$('reset').onclick=()=>reset();$('evaluate').onclick=evaluate;$('grip').onclick=toggleGrip;$('arm').onchange=()=>{stop();$('arm').blur();gripLabel();};setInterval(tick,60);
+(async()=>{
+ updateActions();
+ try{const response=await fetch('/play/catalog');if(!response.ok)throw new Error('Could not load scenes');scenes=(await response.json()).scenes;drawNav();updateActions();}
+ catch(e){$('error').textContent=e.message;return;}
+ const id=localStorage.getItem('abc-play-session');if(id){try{render(await call('observe',{session_id:id}));closed={left:state.joint_pos[6]<.5,right:state.joint_pos[13]<.5};gripLabel();}catch{localStorage.removeItem('abc-play-session');}}
+})();
 </script></html>

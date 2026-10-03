@@ -6,6 +6,8 @@ from pathlib import Path
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response
 
+from abc_inspect.catalog import SCENES, task_details
+
 
 def benchmark_result(observation: dict) -> dict:
     """Present Inspect's final binary task score, never harness success or live reward."""
@@ -40,6 +42,12 @@ def add_play_routes(mcp, port: int):
             return Response(status_code=403)
         return HTMLResponse(Path(__file__).with_name("play.html").read_text())
 
+    @mcp.custom_route("/play/catalog", methods=["GET"])
+    async def catalog(request: Request):
+        if not allowed(request):
+            return Response(status_code=403)
+        return JSONResponse({"scenes": SCENES}, headers={"Cache-Control": "no-store"})
+
     @mcp.custom_route("/play/api", methods=["POST"])
     async def api(request: Request):
         if not allowed(request):
@@ -60,6 +68,7 @@ def add_play_routes(mcp, port: int):
                 for name, block in zip(result["camera_order"], images, strict=True)
             }
             result["benchmark"] = benchmark_result(result)
+            result["task_details"] = task_details(result["task_id"])
             return JSONResponse(result, headers={"Cache-Control": "no-store"})
         except Exception as error:  # noqa: BLE001 - report tool errors at HTTP boundary
             return JSONResponse({"error": str(error)}, status_code=400)

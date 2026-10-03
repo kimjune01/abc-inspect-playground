@@ -65,23 +65,29 @@ def create_server(log_dir: Path, port: int = 8876):
     async def start_trial(
         request_id: str, seed: int = 7, max_steps: int = 300, task: str = TASK
     ) -> list[TextContent | ImageContent]:
-        """Start ABC bottles or count_into_opaque_box scene; returns session_id, sequence, proprioception and three PNGs.
+        """Start an ABC task (count_one/two/three_into_opaque_box, spell_cat/dog/fish, count_into_opaque_box, or put_plastic_bottles_in_bin); returns session_id, sequence, proprioception and three PNGs.
 
-        A duplicate start returns the same session's latest state. Up to 8 trials per
-        server lifetime; one active at a time. max_steps 1..1000, idle timeout 15 minutes.
+        A duplicate start returns the same session's latest state, or an archived error.
+        Keep 8 recent trials, up to 256 starts per server lifetime; one active at a time. max_steps 1..1000, idle timeout 15 minutes.
         """
         async with start_lock:
             if request_id in starts:
                 previous_seed, previous_steps, previous_task, session_id = starts[request_id]
                 if (seed, max_steps, task) != (previous_seed, previous_steps, previous_task):
                     raise ValueError("request_id reused with a different start payload")
+                if session_id not in sessions:
+                    raise ValueError("Trial archived; use a new request_id for a new trial")
                 return content(await asyncio.to_thread(sessions[session_id].observe))
             if not request_id or len(request_id) > 128:
                 raise ValueError("request_id must contain 1 to 128 characters")
-            if len(sessions) >= 8:
-                raise ValueError("Prototype trial limit reached; restart server")
+            if len(starts) >= 256:
+                raise ValueError("Prototype trial limit reached; restart server after 256 trials")
             if any(s.current["status"] != "finished" and not s.closed for s in sessions.values()):
                 raise ValueError("Finish the active trial before starting another")
+            if len(sessions) >= 8:
+                oldest_id = next(iter(sessions))
+                await asyncio.to_thread(sessions[oldest_id].close)
+                del sessions[oldest_id]
             session = await asyncio.to_thread(
                 Session, log_dir, seed=seed, max_steps=max_steps, task=task
             )

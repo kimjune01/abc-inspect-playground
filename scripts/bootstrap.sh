@@ -12,3 +12,4 @@ if [ "$(git -C vendor/abc rev-parse HEAD)" != "$ABC_REV" ]; then
 fi
 uv sync --frozen --python 3.12
 uv run python vendor/abc/prepare.py --sim-task put_plastic_bottles_in_bin
+uv run python vendor/abc/prepare.py --sim-task spell_cat

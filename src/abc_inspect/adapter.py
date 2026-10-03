@@ -22,8 +22,9 @@ from inspect_robots.scorer import Score
 from inspect_robots.spaces import ActionSemantics, Box, CameraSpec, ObservationSpace
 from inspect_robots.types import Action, Observation, StepResult
 
+from abc_inspect.catalog import ABC_REV, FIXED_COUNTS
+
 ROOT = Path(__file__).resolve().parents[2]
-ABC_REV = "d0832d12651d1b260a652861a14648dc5f3660c7"
 TASK = "put_plastic_bottles_in_bin"
 
 
@@ -50,11 +51,7 @@ class AbcEmbodiment:
         self.last_observation: Observation | None = None
         self.steps = 0
         self.task_name = task
-        self.instruction = (
-            "Put the plastic bottles in the bin"
-            if task == TASK
-            else "Pick up objects and place them in the box"
-        )
+        self.instruction = self.env.prompt
         # ABC's generic Gym Box is [-1,1], but its arm commands are joint radians.
         # Use the actual actuator ranges; grippers are normalized [0,1] in ABC.
         low = self.env.model.actuator_ctrlrange[self.env._ctrl_indices, 0].copy()
@@ -110,7 +107,29 @@ class AbcEmbodiment:
         self.steps = 0
         self.env.forget_arm_state()
         obs, _ = self.env.reset(seed=seed, randomize=True)
-        if self.task_name == "count_into_opaque_box":
+        if self.task_name in FIXED_COUNTS:
+            # ABC declares fixed-count specs, but its shared randomizer samples a
+            # new directive even for those specs. Bind the documented fixed goal
+            # through the upstream evaluator's configuration hook after reset.
+            # Object geometry and the evaluator's scoring logic remain unchanged.
+            spec = import_abc().get_task_spec(self.task_name)
+            randomized = self.env._last_randomization
+            randomized.metadata.update(
+                prompt=spec.prompt,
+                prompt_type="exact_count",
+                target_count=FIXED_COUNTS[self.task_name],
+                target_objects=[],
+                eligible_objects=[obj["name"] for obj in randomized.metadata["objects"]],
+                attributes={},
+            )
+            self.env.prompt = spec.prompt
+            self.env._task_evaluator.configure_from_randomization(self.env.model, randomized)
+            obs["prompt"] = spec.prompt
+        if (
+            self.task_name == "count_into_opaque_box"
+            or self.task_name in FIXED_COUNTS
+            or self.task_name.startswith("spell_")
+        ):
             # The public reset prompt specifies the goal used by ABC's evaluator.
             # Do not expose randomization metadata (eligible object IDs or poses).
             self.instruction = str(obs["prompt"])
