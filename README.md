@@ -8,7 +8,9 @@ Everything runs locally, without robot hardware or policy-model weights.
 commands, native Inspect logs, and a scripted cube pick-and-place demonstration.
 This is a prototype for developing robotics benchmarks, not a validated benchmark.
 
-[Roadmap](ROADMAP.md) · [Initial integration measurements](DERISK.md)
+[Roadmap](ROADMAP.md) · [Initial integration measurements](DERISK.md) · [AGPL-3.0-or-later](LICENSE)
+
+![Live ABC Sim playground showing a green cube in the box, three camera views, and keyboard controls.](docs/images/playground.png)
 
 ## Start and play
 
@@ -17,7 +19,8 @@ been verified. You need Git, `uv`, Chrome, and a working graphics context for
 MuJoCo cameras. Setup downloads the pinned dependencies and selected ABC assets.
 
 ```sh
-cd /Users/junekim/Documents/abc-inspect-prototype
+git clone https://github.com/kimjune01/abc-inspect-playground.git
+cd abc-inspect-playground
 bash scripts/bootstrap.sh  # first-time setup
 bash scripts/serve.sh
 ```
@@ -207,3 +210,16 @@ The server binds to localhost. Browser routes check Host and Origin, but there i
 no authenticated controller identity. Local agents have shell access, so this is
 a trusted development sandbox, not an isolated benchmark. See [ROADMAP.md](ROADMAP.md)
 for the gates before making benchmark claims.
+
+
+## License
+
+Copyright (C) 2026 June and contributors.
+
+Original code in this repository is licensed under the **GNU Affero General Public
+License, version 3 or later** (`AGPL-3.0-or-later`). See [LICENSE](LICENSE).
+
+ABC Sim, Inspect Robots, other dependencies, and rendered third-party assets retain
+their respective licenses. Downloaded upstream sources and assets are not included
+in this repository. The screenshot above shows ABC Sim running through this project's
+browser interface.

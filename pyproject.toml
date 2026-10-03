@@ -2,6 +2,9 @@
 name = "abc-inspect-prototype"
 version = "0.1.0"
 description = "Local ABC Sim / Inspect Robots / MCP integration spike"
+readme = "README.md"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
 requires-python = ">=3.12,<3.14"
 dependencies = [
   "numpy",
@@ -15,6 +18,9 @@ dependencies = [
   "mink>=0.0.13,<1",
   "daqp>=0.7,<1",
 ]
+
+[project.urls]
+Repository = "https://github.com/kimjune01/abc-inspect-playground"
 
 [dependency-groups]
 dev = ["pytest", "pytest-asyncio", "ruff", "mypy"]
