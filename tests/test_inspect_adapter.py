@@ -3,7 +3,8 @@
 import json
 
 import numpy as np
-from inspect_robots import eval as inspect_eval, read_eval_log
+from inspect_robots import eval as inspect_eval
+from inspect_robots import read_eval_log
 from inspect_robots.policy import PolicyConfig, PolicyInfo
 from inspect_robots.scene import Scene
 from inspect_robots.task import Task

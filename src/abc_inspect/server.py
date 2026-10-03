@@ -1,0 +1,150 @@
+"""Small localhost/stdio MCP surface; all physics belongs to Inspect's worker."""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import base64
+import io
+import json
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from mcp.server.fastmcp import FastMCP
+from mcp.types import ImageContent, TextContent
+from PIL import Image
+
+from abc_inspect.session import Session
+
+
+def content(observation: dict) -> list[TextContent | ImageContent]:
+    metadata = {k: v for k, v in observation.items() if k != "images"}
+    metadata["camera_order"] = list(observation["images"])
+    result: list[TextContent | ImageContent] = [TextContent(type="text", text=json.dumps(metadata))]
+    for name, pixels in observation["images"].items():
+        buffer = io.BytesIO()
+        Image.fromarray(pixels).save(buffer, format="PNG")
+        result.extend(
+            [
+                TextContent(type="text", text=f"Camera: {name}"),
+                ImageContent(
+                    type="image",
+                    mimeType="image/png",
+                    data=base64.b64encode(buffer.getvalue()).decode(),
+                ),
+            ]
+        )
+    return result
+
+
+def create_server(log_dir: Path, port: int = 8876):
+    sessions: dict[str, Session] = {}
+    starts: dict[str, tuple[int, int, str]] = {}
+    start_lock = asyncio.Lock()
+
+    @asynccontextmanager
+    async def lifespan(server):
+        try:
+            yield {}
+        finally:
+            for session in sessions.values():
+                await asyncio.to_thread(session.close)
+
+    mcp = FastMCP(
+        "ABC Inspect prototype",
+        host="127.0.0.1",
+        port=port,
+        lifespan=lifespan,
+        instructions=(
+            "Local simulation only. One active trial. Camera RGB + 14 joint values; "
+            "left 6 radians + gripper, right 6 radians + gripper; gripper 0 closed, 1 open. "
+            "Time is paused between commands. Reuse EXACT request_id and arguments after "
+            "a timeout. New actions require the latest sequence; old retry results can be stale. "
+            "finish_trial records completion, not task success. No world editing or oracle during play."
+        ),
+    )
+
+    def lookup(session_id: str):
+        if session_id not in sessions:
+            raise ValueError("Unknown session_id; server restarts invalidate sessions")
+        return sessions[session_id]
+
+    @mcp.tool()
+    async def start_trial(
+        request_id: str, seed: int = 7, max_steps: int = 300
+    ) -> list[TextContent | ImageContent]:
+        """Start ABC bottles scene; returns session_id, sequence, proprioception and three PNGs.
+
+        A duplicate start returns the same session's latest state. Up to 8 trials per
+        server lifetime; one active at a time. max_steps 1..1000, idle timeout 15 minutes.
+        """
+        async with start_lock:
+            if request_id in starts:
+                previous_seed, previous_steps, session_id = starts[request_id]
+                if (seed, max_steps) != (previous_seed, previous_steps):
+                    raise ValueError("request_id reused with a different start payload")
+                return content(await asyncio.to_thread(sessions[session_id].observe))
+            if not request_id or len(request_id) > 128:
+                raise ValueError("request_id must contain 1 to 128 characters")
+            if len(sessions) >= 8:
+                raise ValueError("Prototype trial limit reached; restart server")
+            if any(s.current["status"] != "finished" and not s.closed for s in sessions.values()):
+                raise ValueError("Finish the active trial before starting another")
+            session = await asyncio.to_thread(Session, log_dir, seed=seed, max_steps=max_steps)
+            sessions[session.id] = session
+            starts[request_id] = (seed, max_steps, session.id)
+            return content(await asyncio.to_thread(session.observe))
+
+    @mcp.tool()
+    async def observe(session_id: str) -> list[TextContent | ImageContent]:
+        """Read latest completed state and actual camera PNGs without advancing simulation."""
+        return content(await asyncio.to_thread(lookup(session_id).observe))
+
+    @mcp.tool()
+    async def move_joints(
+        session_id: str,
+        request_id: str,
+        expected_sequence: int,
+        target: list[float],
+        steps: int = 5,
+    ) -> list[TextContent | ImageContent]:
+        """Apply 14 absolute actuator targets through real dynamics for 1..30 control ticks.
+
+        Each arm joint may change at most 0.2 radians from observed state; grippers
+        at most 0.25. Bounds are returned by observe. Duplicate requests never move twice.
+        Calls serialize; competing commands with an old sequence are rejected.
+        """
+        result = await asyncio.to_thread(
+            lookup(session_id).move, request_id, expected_sequence, target, steps=steps
+        )
+        return content(result)
+
+    @mcp.tool()
+    async def finish_trial(
+        session_id: str, request_id: str, expected_sequence: int, reason: str = "agent_finished"
+    ) -> list[TextContent | ImageContent]:
+        """Finish without advancing physics; return native Inspect JSON path and final metrics.
+
+        The simulator oracle scores task success independently of the reason string.
+        Inspect eval_status='success' only means the evaluation completed without errors.
+        """
+        result = await asyncio.to_thread(
+            lookup(session_id).finish, request_id, expected_sequence, reason=reason
+        )
+        return content(result)
+
+    return mcp
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
+    parser.add_argument("--port", type=int, default=8876)
+    parser.add_argument("--log-dir", type=Path, default=Path("outputs/trials"))
+    args = parser.parse_args()
+    server = create_server(args.log_dir.resolve(), args.port)
+    server.run(transport=args.transport)
+
+
+if __name__ == "__main__":
+    main()

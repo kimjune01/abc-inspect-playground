@@ -5,17 +5,17 @@ from __future__ import annotations
 import copy
 import multiprocessing as mp
 import os
-from pathlib import Path
 import queue
 import resource
 import threading
 import time
-from typing import Any
 import uuid
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 
-from abc_inspect.adapter import AbcEmbodiment, AbcSuccessScorer, TASK
+from abc_inspect.adapter import TASK, AbcEmbodiment, AbcSuccessScorer
 
 
 def _run_trial(commands, responses, directory: str, seed: int, max_steps: int):
@@ -31,6 +31,9 @@ def _run_trial(commands, responses, directory: str, seed: int, max_steps: int):
     started = time.monotonic()
     try:
         arm = AbcEmbodiment()
+        embodiment_info = arm.info
+        low, high = embodiment_info.action_space.low, embodiment_info.action_space.high
+        assert low is not None and high is not None
 
         def packet(status="active", **extra):
             obs = arm.last_observation
@@ -45,14 +48,14 @@ def _run_trial(commands, responses, directory: str, seed: int, max_steps: int):
                 control_hz=arm.info.control_hz,
                 instruction=obs.instruction,
                 limits={
-                    "low": arm.info.action_space.low.tolist(),
-                    "high": arm.info.action_space.high.tolist(),
+                    "low": low.tolist(),
+                    "high": high.tolist(),
                 },
                 **extra,
             )
 
         class ExternalPolicy:
-            info = PolicyInfo(name="external-mcp", action_space=arm.info.action_space)
+            info = PolicyInfo(name="external-mcp", action_space=embodiment_info.action_space)
             config = PolicyConfig(action_horizon=30)
 
             def __init__(self):
@@ -109,7 +112,7 @@ def _run_trial(commands, responses, directory: str, seed: int, max_steps: int):
                 peak_rss_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
             )
         )
-    except BaseException as error:
+    except Exception as error:  # noqa: BLE001 - process boundary reports errors to the client
         import traceback
 
         responses.put({"error": str(error), "traceback": traceback.format_exc()})
@@ -222,24 +225,24 @@ class Session:
     def move(self, request_id: str, expected_sequence: int, target: list[float], *, steps: int = 5):
         with self.lock:
             return self._execute(
-                dict(
-                    kind="move",
-                    request_id=request_id,
-                    expected_sequence=expected_sequence,
-                    target=list(target),
-                    steps=steps,
-                )
+                {
+                    "kind": "move",
+                    "request_id": request_id,
+                    "expected_sequence": expected_sequence,
+                    "target": list(target),
+                    "steps": steps,
+                }
             )
 
     def finish(self, request_id: str, expected_sequence: int, *, reason: str = "agent_finished"):
         with self.lock:
             return self._execute(
-                dict(
-                    kind="finish",
-                    request_id=request_id,
-                    expected_sequence=expected_sequence,
-                    reason=reason,
-                )
+                {
+                    "kind": "finish",
+                    "request_id": request_id,
+                    "expected_sequence": expected_sequence,
+                    "reason": reason,
+                }
             )
 
     def close(self):
