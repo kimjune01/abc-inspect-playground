@@ -17,6 +17,10 @@ def test_browser_distinguishes_budget_exhaustion_from_manual_finish():
             function.group()
             + """
 const assert = require('node:assert/strict');
+assert.equal(playStatus({status:'active',max_steps:5000,sim_time:34,physics_steps:1000}),
+             'Ready · 34.0s · 4000 steps left');
+assert.equal(playStatus({status:'finished',max_steps:5000,sim_time:68,physics_steps:2000}),
+             'Finished · 68.0s · Reset to play again');
 assert.equal(playStatus({status:'active',sim_time:17,physics_steps:500}),
              'Ready · 17.0s · 500 steps left');
 assert.equal(playStatus({status:'finished',sim_time:34,physics_steps:1000}),
@@ -42,6 +46,10 @@ def test_budget_warns_before_exhaustion_and_stays_distinct_from_task_score():
             function.group()
             + """
 const assert = require('node:assert/strict');
+assert.deepEqual(budgetState({physics_steps:1000,max_steps:5000,status:'active'}),
+                 {remaining:4000,tone:'ready',label:'4000 steps left'});
+assert.deepEqual(budgetState({physics_steps:4500,max_steps:5000,status:'active'}),
+                 {remaining:500,tone:'low',label:'500 steps left'});
 assert.deepEqual(budgetState(null), {remaining:1000,tone:'idle',label:'1,000-step budget'});
 assert.deepEqual(budgetState({physics_steps:900,status:'active'}),
                  {remaining:100,tone:'low',label:'100 steps left'});

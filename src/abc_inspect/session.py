@@ -50,6 +50,7 @@ def _run_trial(commands, responses, directory: str, seed: int, max_steps: int, t
                 joint_pos=obs.state["joint_pos"].tolist(),
                 sim_time=obs.state_time,
                 physics_steps=arm.steps,
+                max_steps=max_steps,
                 wall_elapsed_s=time.monotonic() - started,
                 control_hz=arm.info.control_hz,
                 instruction=obs.instruction,
@@ -148,8 +149,9 @@ class Session:
     ):
         if task not in SUPPORTED_TASKS:
             raise ValueError("Unsupported task")
-        if not 1 <= max_steps <= 1000:
-            raise ValueError("max_steps must be between 1 and 1000")
+        limit = task_details(task)["max_steps"]
+        if not 1 <= max_steps <= limit:
+            raise ValueError(f"max_steps must be between 1 and {limit} for {task}")
         self.id = uuid.uuid4().hex
         self.directory = (log_root / self.id).resolve()
         self.directory.mkdir(parents=True)

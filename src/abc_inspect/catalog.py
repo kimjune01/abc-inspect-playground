@@ -13,6 +13,7 @@ def entry(task_id: str, label: str, evaluator: str):
     return {
         "id": task_id,
         "label": label,
+        "max_steps": 5000 if task_id.startswith("spell_") else 1000,
         "source_url": f"{SOURCE}/task_specs.py",
         "evaluator_url": f"{SOURCE}/task_eval/{evaluator}.py",
         "attribution": "ABC · Amazon FAR and collaborators",

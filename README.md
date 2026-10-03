@@ -39,8 +39,9 @@ window stops new commands; an in-flight command completes. Cameras refresh after
 each command, and physics pauses between commands. Translation uses world axes;
 the wrist retains its tilt. Pitch/roll controls are not implemented.
 
-The status shows the remaining step budget. Trials end after 1,000 physics ticks
-(about 34 simulated seconds), with a “Step limit reached” message. Reset to continue; restart the server after
+The status shows the remaining step budget: **1,000 ticks for box tasks** (about
+34 simulated seconds), **5,000 for letter blocks** (about 170 seconds). Trials end
+with a “Step limit reached” message. Reset to continue; restart the server after
 256 starts. The eight most recent trials remain available through the API; older
 logs stay on disk. After restarting, refresh the page and click Start.
 
@@ -142,7 +143,7 @@ uv run ruff check src tests
 uv run mypy src/abc_inspect
 ```
 
-The 35 tests cover physics, cameras, resets, scoring, retries, concurrency,
+The 36 tests cover physics, cameras, resets, scoring, retries, concurrency,
 transports, scene/task switching, keyboard-control endpoints, and resource cleanup. Source lives in
 [`src/abc_inspect/`](src/abc_inspect/); local artifacts in `outputs/` are ignored.
 

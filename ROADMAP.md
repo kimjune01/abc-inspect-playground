@@ -18,7 +18,7 @@ using the next stage to draw research conclusions.
 - One successful scripted cube pick-and-place with privileged initial geometry.
 - A TUI subagent motion trial through a real MCP protocol client.
 
-The 35-test suite validates integration behavior. It does not establish general
+The 36-test suite validates integration behavior. It does not establish general
 manipulation ability, low-latency teleoperation, or benchmark validity.
 [DERISK.md](DERISK.md) preserves the earlier integration measurements; its list of
 unfinished features predates the live controls and scripted baseline.

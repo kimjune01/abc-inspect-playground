@@ -174,3 +174,17 @@ def test_disk_cache_failure_retry_does_not_lose_or_repeat_motion(tmp_path, monke
         assert recovered["sequence"] == 1
         assert retained_array_bytes(session.cache) == 0
         assert session.observe()["physics_steps"] == 2
+
+
+def test_letter_tasks_allow_five_times_the_box_budget(tmp_path):
+    for task, limit in [("spell_cat", 5000), ("count_one_into_opaque_box", 1000)]:
+        with pytest.raises(ValueError, match="max_steps"):
+            Session(tmp_path, task=task, max_steps=limit + 1)
+    with Session(tmp_path, task="spell_cat", max_steps=5000) as session:
+        first = session.observe()
+        assert first["max_steps"] == 5000
+        moved = session.move("budget-move", 0, first["joint_pos"], steps=2)
+        assert moved["max_steps"] == 5000
+        assert moved["status"] == "active"
+        final = session.finish("budget-finish", 1)
+        assert final["max_steps"] == 5000

@@ -54,8 +54,8 @@ function updateActions(){
  $('views').setAttribute('aria-busy',String(resetting));
 }
 function budgetState(s){
- const remaining=Math.max(0,1000-(s?.physics_steps??0));
- return {remaining,tone:!s?'idle':s.status!=='active'?(remaining===0?'ended':'finished'):remaining<=100?'low':'ready',label:s?`${remaining} steps left`:'1,000-step budget'};
+ const limit=s?.max_steps??1000,remaining=Math.max(0,limit-(s?.physics_steps??0));
+ return {remaining,tone:!s?'idle':s.status!=='active'?(remaining===0?'ended':'finished'):remaining<=limit*.1?'low':'ready',label:s?`${remaining} steps left`:'1,000-step budget'};
 }
 function robotHotkey(e){
  if(e.metaKey||e.ctrlKey||e.altKey||e.target.closest('input,textarea,select,[contenteditable="true"]'))return false;
@@ -63,11 +63,11 @@ function robotHotkey(e){
 }
 function syncKeys(){document.querySelectorAll('[data-key]').forEach(b=>b.classList.toggle('active',keys.has(b.dataset.key)));}
 function playStatus(s){
- if(s.status==='active')return `Ready · ${s.sim_time.toFixed(1)}s · ${Math.max(0,1000-s.physics_steps)} steps left`;
- if(s.physics_steps>=1000)return 'Step limit reached · Reset to play again';
+ if(s.status==='active')return `Ready · ${s.sim_time.toFixed(1)}s · ${Math.max(0,(s.max_steps??1000)-s.physics_steps)} steps left`;
+ if(s.physics_steps>=(s.max_steps??1000))return 'Step limit reached · Reset to play again';
  return `Finished · ${s.sim_time.toFixed(1)}s · Reset to play again`;
 }
-function render(s){state=s;selectedScene=s.scene_id;selectedTask=s.task_id;drawNav();const detail=s.task_details;$("task-source").textContent="ABC task";$("task-source").href=detail.source_url;$("evaluator-source").href=detail.evaluator_url;$("task-hint").textContent=detail.hint;for(const name of ['top','left','right'])$(name).src=s.images[name];$('status').textContent=playStatus(s);const budget=budgetState(s);$('trial-status').dataset.tone=budget.tone;$('budget').value=budget.remaining;$('budget').setAttribute('aria-label',budget.label);$('budget').title=budget.label;$('empty-view').hidden=true;if(s.status!=='active')stop();$('reset').textContent='Reset';$('task').textContent=s.instruction;const score=s.benchmark??{state:'pending',label:'Not evaluated'};$('benchmark').dataset.state=score.state;$('benchmark').textContent=score.label;updateActions();localStorage.setItem('abc-play-session',s.session_id);}
+function render(s){state=s;selectedScene=s.scene_id;selectedTask=s.task_id;drawNav();const detail=s.task_details;$("task-source").textContent="ABC task";$("task-source").href=detail.source_url;$("evaluator-source").href=detail.evaluator_url;$("task-hint").textContent=detail.hint;for(const name of ['top','left','right'])$(name).src=s.images[name];$('status').textContent=playStatus(s);const budget=budgetState(s);$('trial-status').dataset.tone=budget.tone;$('budget').max=s.max_steps??1000;$('budget').value=budget.remaining;$('budget').setAttribute('aria-label',budget.label);$('budget').title=budget.label;$('empty-view').hidden=true;if(s.status!=='active')stop();$('reset').textContent='Reset';$('task').textContent=s.instruction;const score=s.benchmark??{state:'pending',label:'Not evaluated'};$('benchmark').dataset.state=score.state;$('benchmark').textContent=score.label;updateActions();localStorage.setItem('abc-play-session',s.session_id);}
 
 function gripLabel(){$('grip').textContent=(closed[$('arm').value]?'Open':'Close')+' gripper · Space';}
 async function call(tool,args){
@@ -81,7 +81,7 @@ async function call(tool,args){
 async function reset(taskId=selectedTask){
  if(busy||resetting||!scenes.length)return;resetting=true;stop();gripPending=null;updateActions();$('error').textContent='';$('status').textContent='Starting…';
  try{if(state?.status==='active')state=await call('finish_trial',{session_id:state.session_id,request_id:crypto.randomUUID(),expected_sequence:state.sequence,reason:'browser_reset'});
- render(await call('start_trial',{request_id:crypto.randomUUID(),seed:7,max_steps:1000,task:taskId}));closed={left:false,right:false};gripLabel();}
+ render(await call('start_trial',{request_id:crypto.randomUUID(),seed:7,max_steps:scenes.flatMap(s=>s.tasks).find(t=>t.id===taskId)?.max_steps??1000,task:taskId}));closed={left:false,right:false};gripLabel();}
  catch(e){if(state)render(state);$('error').textContent=e.message;$('status').textContent='Could not start';}
  finally{resetting=false;updateActions();}
 }
@@ -97,7 +97,7 @@ async function tick(){
  const direction=[0,0,0,0];for(const key of keys)mapping[key]?.forEach((v,i)=>direction[i]+=v);
  const norm=Math.max(1,Math.hypot(...direction.slice(0,3)));
  const grip=gripPending;gripPending=null;busy=true;updateActions();$('error').textContent='';$('status').textContent='Moving…';
- try{render(await call('jog_arm',{session_id:state.session_id,request_id:crypto.randomUUID(),expected_sequence:state.sequence,translation:direction.slice(0,3).map(v=>v*.018/norm),yaw:direction[3]*.10,gripper:grip?.value??null,arm:grip?.arm??$('arm').value,steps:Math.min(5,1000-state.physics_steps)}));}
+ try{render(await call('jog_arm',{session_id:state.session_id,request_id:crypto.randomUUID(),expected_sequence:state.sequence,translation:direction.slice(0,3).map(v=>v*.018/norm),yaw:direction[3]*.10,gripper:grip?.value??null,arm:grip?.arm??$('arm').value,steps:Math.min(5,(state.max_steps??1000)-state.physics_steps)}));}
  catch(e){stop();$('error').textContent=e.message;try{render(await call('observe',{session_id:state.session_id}));}catch{} $('status').textContent='Control paused · '+e.message;}
  finally{busy=false;updateActions();}
 }

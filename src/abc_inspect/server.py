@@ -68,7 +68,7 @@ def create_server(log_dir: Path, port: int = 8876):
         """Start an ABC task (count_one/two/three_into_opaque_box, spell_cat/dog/fish, count_into_opaque_box, or put_plastic_bottles_in_bin); returns session_id, sequence, proprioception and three PNGs.
 
         A duplicate start returns the same session's latest state, or an archived error.
-        Keep 8 recent trials, up to 256 starts per server lifetime; one active at a time. max_steps 1..1000, idle timeout 15 minutes.
+        Keep 8 recent trials, up to 256 starts per server lifetime; one active at a time. max_steps 1..5000 for spelling, 1..1000 otherwise; idle timeout 15 minutes.
         """
         async with start_lock:
             if request_id in starts:

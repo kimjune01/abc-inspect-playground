@@ -65,6 +65,7 @@ def test_scene_catalog_and_switching_keep_task_goal_score_and_attribution_togeth
                 for task in scene["tasks"]:
                     assert "github.com/amazon-far/abc/blob/" in task["source_url"]
                     assert "task_eval/" in task["evaluator_url"]
+                    assert task["max_steps"] == (5000 if scene["id"] == "letter_blocks" else 1000)
                     started = client.post(
                         "/play/api",
                         json={
