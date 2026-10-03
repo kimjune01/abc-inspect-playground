@@ -1,113 +1,147 @@
-# ABC + Inspect + MCP prototype
+# ABC Inspect Playground
 
-A working local integration spike for **ABC Sim → Inspect Robots → MCP → TUI agent**.
-CPU MuJoCo physics and OpenGL cameras run on an Apple Silicon laptop. The simulator
-needs no model weights, CUDA, physical robot, cloud simulator, or API key.
-The agent still uses its usual model service.
+Play with a simulated robot in Chrome, or let a TUI agent drive it through MCP.
+ABC Sim supplies the robot and physics; Inspect Robots runs and records each trial.
+Everything runs locally, without robot hardware or policy-model weights.
 
-See [DERISK.md](DERISK.md) for measured results and remaining research risks.
+**Working today:** keyboard control of either arm, live camera updates, stateful MCP
+commands, native Inspect logs, and a scripted cube pick-and-place demonstration.
+This is a prototype for developing robotics benchmarks, not a validated benchmark.
 
-## Run
+[Roadmap](ROADMAP.md) · [Initial integration measurements](DERISK.md)
+
+## Start and play
+
+Tested on an Apple M3 laptop with 16 GiB RAM and macOS. Other platforms have not
+been verified. You need Git, `uv`, Chrome, and a working graphics context for
+MuJoCo cameras. Setup downloads the pinned dependencies and selected ABC assets.
 
 ```sh
 cd /Users/junekim/Documents/abc-inspect-prototype
-bash scripts/bootstrap.sh  # pinned checkout, dependencies and one task's assets
-uv run pytest -q
-bash scripts/serve.sh      # shared MCP on http://127.0.0.1:8876/mcp
+bash scripts/bootstrap.sh  # first-time setup
+bash scripts/serve.sh
 ```
 
-The server binds only to localhost. The launch script refuses to take over an
-occupied port. Finish any trial before stopping the server with Ctrl-C.
+Open **http://127.0.0.1:8876/play** in Chrome and click **Start**.
+If the server is already running, use that page; the launch script checks the port.
 
-`.codex/config.toml` registers this shared server as `abc_sim` for this project.
-Start a new Codex session in this directory and check `/mcp`. Codex loads project
-configuration only for trusted projects; the initial `codex mcp get abc_sim` here
-reported no server before the project had been trusted. We have not changed global
-Codex configuration or marked the project trusted automatically.
-See the [official MCP setup](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+| Control | Movement |
+| --- | --- |
+| W / S | Forward / back (world X) |
+| A / D | Left / right (world Y) |
+| ↑ / ↓ | Up / down (world Z) |
+| ← / → | Rotate around the vertical axis (yaw) |
+| Space | Close / open the selected gripper |
+| Arm selector | Switch between left and right arms |
+| Reset | Finish the current trial and start a fresh scene |
+| Escape | Stop sending movement commands |
 
-For a TUI session whose tool catalog is already loaded, the protocol helper works:
+Hold a key to keep moving. The on-screen buttons also work. Releasing a key or
+switching away stops further movement commands; an in-flight command completes.
+Each browser command advances up to five physics ticks, about 0.17 simulated
+seconds. Cameras update after each command, and physics pauses between commands.
+This is interactive control, not a continuous real-time video stream.
+
+The wrist keeps its existing tilt while yawing. There are no pitch/roll controls
+yet, and reach limits or collisions may prevent movement. Keyboard play opens the
+cube-and-box scene; the scripted demo below uses its own grasp controller.
+
+A browser trial lasts at most 1,000 physics ticks. Reset to play again. The server
+retains at most eight trials per run; restart it after reaching that limit. Server
+restarts invalidate sessions: refresh the page and click Start again.
+
+## Let a TUI agent drive
+
+The shared MCP endpoint is **http://127.0.0.1:8876/mcp**. The browser and agents use
+the same tools and the same active-trial registry. Coordinate who controls a
+trial; there is no explicit human/agent ownership handoff yet.
+
+`.codex/config.toml` contains a project-local `abc_sim` registration. A new trusted
+Codex session must load that configuration. Direct discovery in a fresh TUI
+session remains unverified; a subagent has successfully used the protocol helper:
 
 ```sh
 uv run python -m abc_inspect.client start_trial \
-  '{"request_id":"trial-1","seed":7,"max_steps":100}'
+  '{"request_id":"trial-1","seed":7,"max_steps":100,"task":"count_into_opaque_box"}'
 ```
 
-It prints observation metadata and paths to three PNGs received through MCP.
-An agent can view those images, then call tools with JSON arguments (or `@file.json`).
-The tested subagent used this helper; native TUI tool discovery remains a separate
-integration check for the next project session.
+The helper prints metadata and saves the three camera PNGs. Inspect those images
+before choosing an action. Substitute the returned session ID and sequence:
 
-## Tools and contract
+```sh
+uv run python -m abc_inspect.client jog_arm \
+  '{"session_id":"SESSION_ID","request_id":"move-1","expected_sequence":0,"translation":[0.01,0,0],"yaw":0,"arm":"left"}'
 
-| Tool | Arguments | Result |
-| --- | --- | --- |
-| `start_trial` | `request_id`, `seed`, `max_steps` | Session ID, sequence 0, state, RGB images |
-| `observe` | `session_id` | Latest completed state without advancing physics |
-| `move_joints` | `session_id`, `request_id`, `expected_sequence`, `target`, `steps` | State after bounded physical movement |
-| `finish_trial` | `session_id`, `request_id`, `expected_sequence`, `reason` | Final state, native Inspect JSON path, task metric |
+uv run python -m abc_inspect.client finish_trial \
+  '{"session_id":"SESSION_ID","request_id":"finish-1","expected_sequence":1,"reason":"done"}'
+```
 
-`target` is 14 absolute values: **left six joint radians, left gripper, right six
-joint radians, right gripper**. Grippers use 0 closed, 1 open. Actual joint limits
-are returned by the server. Each request changes at most 0.2 radians per arm joint
-and 0.25 per gripper, for 1–30 control ticks. The measured control rate is about 29.41 Hz (34 ms per tick).
-The simulator pauses while the agent thinks.
+Arguments can also come from `@file.json`. Finish the browser's active trial or
+stop/reset the server before starting a separate agent trial.
 
-Use a fresh request ID for each action and the latest returned `sequence`.
-After a timeout, retry the **same ID and identical arguments**; do not send a fresh
-motion. Duplicate responses may describe an older state, so observe again before
-planning another action. Competing commands using the same sequence cannot both
-execute. A server restart invalidates sessions; there is no crash recovery/replay.
+### Tool contract
 
-One active trial and at most eight trials per server lifetime; each trial is
-limited to 1–1000 control ticks, with a 15-minute idle timeout. HTTP disconnects
-do not end the robot trial. All clients share the same server and must coordinate
-ownership; sequence checks are concurrency control, not authentication.
+| Tool | Purpose |
+| --- | --- |
+| `start_trial(request_id, seed=7, max_steps=300, task=…)` | Create the single active trial; return state and cameras |
+| `observe(session_id)` | Read the latest completed state without stepping physics |
+| `jog_arm(session_id, request_id, expected_sequence, translation, yaw=0, gripper=null, arm="left", steps=5)` | Move using robot-only inverse kinematics |
+| `move_joints(session_id, request_id, expected_sequence, target, steps=5)` | Apply bounded absolute joint targets |
+| `finish_trial(session_id, request_id, expected_sequence, reason=…)` | Finish without moving; return final metrics and log path |
 
-## Inspect compatibility
+Supported tasks are `put_plastic_bottles_in_bin` (the MCP default) and
+`count_into_opaque_box` (the browser default).
 
-The native `inspect_robots.eval` loop owns every reset and step. A queue-backed
-`Policy` supplies `ActionChunk`s; the ABC adapter implements `Embodiment`; the
-scorer consumes ABC's task evaluator. Each trial writes native JSON, `.npy` camera
-frames, action metadata and an external-command transcript. The full external
-agent conversation is **not** captured in that transcript.
+- **Observations:** three RGB cameras, 14 joint values, robot grasp-site poses,
+  actuator limits, sequence, status, and simulated time. Live observations exclude
+  object poses and task scores.
+- **Cartesian jog:** a three-value world-frame translation in metres, norm at most
+  0.026; world-Z yaw at most ±0.12 radians. Gripper is `0` closed, `1` open, or `null`
+  to retain its command. IK produces bounded actuator targets, not guaranteed motion.
+- **Joint targets:** left six joint radians, left gripper, right six joint radians,
+  right gripper. Maximum change from observed state is 0.2 radians per joint and
+  0.25 per gripper. Use the returned actuator bounds.
+- **Timing:** 1–30 ticks per tool action, at approximately 29.41 simulated Hz.
+  Trials allow 1–1,000 ticks and have a 15-minute idle timeout.
+- **Retries:** use a fresh request ID and latest sequence for a new action. After a
+  timeout, retry the **same ID and identical arguments**. Duplicate requests do not
+  move twice, but their cached observations can be old; observe before a new decision.
+- **Concurrency:** commands serialize; stale sequences are rejected. HTTP reconnects
+  preserve the robot trial. Restarting the server clears sessions and retry history.
 
-`eval_status: success` means the harness completed; **`abc_success`** is the task
-score. Saying “finished” cannot make the task successful. A finish command is a
-logged no-motion control event; Inspect counts that event as a step, while
-`physics_steps` excludes it. Budget exhaustion finishes automatically.
+## Inspect integration and records
 
-Render a native browser report (replace the path with `log_path`):
+```text
+Chrome keyboard ─┐
+                 ├─ shared tools → session queue → Inspect Policy → ABC Embodiment
+TUI agent / MCP ─┘                                      │                 │
+                                                  native logs       MuJoCo physics
+```
+
+`inspect_robots.eval` owns every reset and physics step. The external policy
+supplies action chunks; the adapter converts ABC observations; the scorer reads
+ABC's evaluator. Mink solves robot kinematics on a separate model. Neither user
+commands nor agent commands teleport the simulated robot or objects.
+
+Trials write native JSON, action metadata, an external-command transcript, and
+`.npy` camera frames under `outputs/trials/SESSION/`. The transcript records tool
+commands, not the agent's complete prompts or conversation.
+
+**Harness completion is not task success.** `eval_status: success` means the
+rollout completed; `abc_success` is ABC's independent task verdict. Finishing is a
+logged no-motion event: Inspect counts it as a step, but `physics_steps` excludes it.
+The browser's generic task instruction is not yet a precise benchmark specification
+for ABC's sampled counting objective.
+
+For a native Inspect report, substitute the returned `log_path`:
 
 ```sh
 uv run inspect-robots view outputs/trials/SESSION/LOG.json --no-video -o outputs/report.html
 ```
 
-The browser report is a replay viewer, not live browser teleoperation.
-
-## Provenance and development
-
-- [ABC](https://github.com/amazon-far/abc), pinned to
-  `d0832d12651d1b260a652861a14648dc5f3660c7`, lives under ignored `vendor/abc`.
-- [Inspect Robots](https://github.com/robocurve/inspect-robots), pinned to
-  `d08442a9d1f43af4658c8d71e02d461e780286e1` in `pyproject.toml` and `uv.lock`.
-- ABC's downloader verifies the selected assets with SHA256.
-- Dependencies: `uv`; Python 3.12; MuJoCo 3.8.1. Only the bottles-and-bin task's
-  asset bundles are downloaded. Upstream code/assets retain upstream licenses.
-
-```sh
-uv run pytest -q
-uv run ruff check src tests
-uv run mypy src/abc_inspect
-```
-
-`tests/` exercises real dynamics, images, seeded reset/replay, native logs,
-retry/timeout/concurrency handling, action budgets and both MCP transports.
-`outputs/` contains local evidence and logs and is intentionally ignored by git.
-
-This is a trusted development sandbox. Benchmark isolation, useful manipulation
-skills, broader seed validation, live browser UI and webcam teleoperation are
-future gates, not established capabilities.
+Camera playback in that report has not been verified here. Use the replay helper
+below to render the recorded frames into videos. Reports and replays do not control
+the active simulator.
 
 ## Scripted pick-and-place demo
 
@@ -116,38 +150,56 @@ uv run python -m abc_inspect.pick_place --output outputs/pick-place/run
 uv run python scripts/render_replay.py outputs/pick-place/run
 ```
 
-The replay helper requires `ffmpeg`. Open the generated `outputs/demo/index.html`,
-or serve that directory on localhost. The page contains only three camera views.
+The replay renderer needs `ffmpeg`. Open `outputs/demo/index.html`. Use a fresh
+output directory for each run so the renderer receives one trial's frames.
+The earlier page on port 8877, if still running, serves this recorded demo.
 
-This controller uses **Mink IK and known initial object geometry**, with native
-Inspect owning the rollout. It physically lifts a cube and releases it into ABC's
-opaque box. It is a scripted baseline, not a vision-agent or MCP-driver result.
-`pick_place=1` verifies the selected cube was lifted >12 cm, released with the
-hand open, and counted inside the box by ABC. The independent `abc_success` score
-can remain zero because ABC's sampled counting directive requires more objects.
-The reproducibility test covers one fixed seed, not general task competence.
+The controller uses **known initial object geometry** and Mink IK to physically
+lift a cube and release it into the box. This is a privileged scripted baseline;
+it does not demonstrate visual reasoning or agent-driven pick-and-place over MCP.
 
-The controller checks grasp reachability and a sampled approach path on a separate
-kinematic model. It sends only actuator targets to the real simulator. Coordinated
-joint increments preserve the planned path; clipping each joint independently
-caused the wrist camera to hit the box during development. Bottle grasps remain
-unreliable and are not presented as successful.
+`pick_place=1` requires the selected cube to rise more than 12 cm, end inside the
+box, and have the gripper open. `abc_success` may remain zero because ABC's sampled
+counting objective asks for more objects. The integration test verifies one fixed
+seed. Bottle pick-and-place remains unreliable.
 
+## Development
 
-## Live keyboard play
+```sh
+uv run pytest -q
+uv run ruff check src tests
+uv run mypy src/abc_inspect
+```
 
-Run `bash scripts/serve.sh`, then open <http://127.0.0.1:8876/play> in Chrome.
-Click Start. Hold W/S for world-X forward/back, A/D for world-Y left/right,
-up/down arrows for world-Z height, and left/right arrows for yaw. Space toggles
-the selected gripper. Choose either arm; Reset starts a fresh cube/box scene.
-Release keys, press Escape, or leave the window to stop sending commands.
-An already running five-tick command completes before stopping.
+The current suite has 14 tests covering real physics, camera output, deterministic
+resets, native logs, idempotency, concurrency, transport reconnects, browser-route
+checks, Cartesian movement, and the scripted manipulation baseline.
 
-The page calls the same MCP tools as agents, including `jog_arm`; it shares the
-single active trial, sequence checks, retry cache, and native Inspect recording.
-`start_trial` accepts `task="count_into_opaque_box"` or the default bottle task.
-Robot-only Mink IK turns Cartesian deltas into bounded actuator targets. The
-wrist retains its tilt while yawing; reach limits or collisions can prevent a
-requested movement. Cameras refresh after each command; simulation pauses when
-idle. Trials end after 1,000 ticks; the prototype retains at most eight trials
-per server run. The original port-8877 page remains a recorded demo.
+| Location | Responsibility |
+| --- | --- |
+| `src/abc_inspect/adapter.py` | ABC → Inspect embodiment and scorer |
+| `src/abc_inspect/session.py` | Isolated rollout process and retry-safe command queue |
+| `src/abc_inspect/server.py` | Shared MCP tools and server lifecycle |
+| `src/abc_inspect/teleop.py` | Cartesian jog → actuator targets using Mink |
+| `src/abc_inspect/play.py`, `play.html` | Local browser interface |
+| `src/abc_inspect/client.py` | MCP protocol CLI helper |
+| `src/abc_inspect/pick_place.py` | Privileged scripted baseline |
+| `scripts/render_replay.py` | Recorded camera frames → browser replay |
+| `outputs/` | Ignored local logs, frames, videos, and measurements |
+
+Pinned upstream components:
+
+- [ABC Sim](https://github.com/amazon-far/abc):
+  `d0832d12651d1b260a652861a14648dc5f3660c7`, under ignored `vendor/abc`.
+- [Inspect Robots](https://github.com/robocurve/inspect-robots):
+  `d08442a9d1f43af4658c8d71e02d461e780286e1`, pinned in the uv configuration.
+- Python 3.12, MuJoCo 3.8.1, and Mink; resolved packages are in `uv.lock`.
+
+Bootstrap downloads robot/bottle assets with ABC's SHA256 verification. The cube
+scene uses primitives and the shared robot assets. Upstream code and assets retain
+their upstream licenses.
+
+The server binds to localhost. Browser routes check Host and Origin, but there is
+no authenticated controller identity. Local agents have shell access, so this is
+a trusted development sandbox, not an isolated benchmark. See [ROADMAP.md](ROADMAP.md)
+for the gates before making benchmark claims.
