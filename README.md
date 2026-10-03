@@ -108,6 +108,10 @@ Supported tasks are `put_plastic_bottles_in_bin` (the MCP default) and
   move twice, but their cached observations can be old; observe before a new decision.
 - **Concurrency:** commands serialize; stale sequences are rejected. HTTP reconnects
   preserve the robot trial. Restarting the server clears sessions and retry history.
+- **Memory:** retry metadata stays in memory; camera snapshots are losslessly
+  compressed under each trial's `retry-frames/` directory and loaded only when needed.
+  Finished trials release their worker, queues, and in-memory images. These files
+  remain alongside the logs; they do not provide recovery after a server restart.
 
 ## Inspect integration and records
 
@@ -171,7 +175,7 @@ uv run ruff check src tests
 uv run mypy src/abc_inspect
 ```
 
-The current suite has 14 tests covering real physics, camera output, deterministic
+The current suite has 16 tests covering real physics, camera output, deterministic
 resets, native logs, idempotency, concurrency, transport reconnects, browser-route
 checks, Cartesian movement, and the scripted manipulation baseline.
 

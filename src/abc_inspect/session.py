@@ -152,6 +152,8 @@ class Session:
         self.lock = threading.RLock()
         self.cache: dict[str, tuple[dict, dict]] = {}
         self.pending: dict | None = None
+        self.received: dict | None = None
+        self.resources_released = False
         self.closed = False
         self.sequence = 0
         context = mp.get_context("spawn")
@@ -166,8 +168,7 @@ class Session:
         try:
             self.current = self._receive()
         except BaseException:
-            self.process.terminate()
-            self.process.join(timeout=5)
+            self._release_worker()
             raise
 
     def _receive(self):
@@ -178,7 +179,7 @@ class Session:
                 "Simulation response pending; retry the SAME request_id and payload"
             ) from error
         if "error" in result:
-            self.closed = True
+            self._release_worker()
             raise RuntimeError(result["traceback"])
         return {**result, "session_id": self.id, "sequence": self.sequence}
 
@@ -186,7 +187,7 @@ class Session:
         with self.lock:
             if self.pending is not None:
                 raise ValueError("Action pending; retry its request_id before observing")
-            return copy.deepcopy(self.current)
+            return self._restore(self.current)
 
     def _execute(self, command: dict[str, Any]):
         request_id = command["request_id"]
@@ -196,7 +197,7 @@ class Session:
             previous, result = self.cache[request_id]
             if previous != command:
                 raise ValueError("request_id reused with a different payload")
-            return copy.deepcopy(result)
+            return self._restore(result)
         if self.pending is not None and self.pending != command:
             raise ValueError("Another action is pending; retry its original request_id and payload")
         if self.pending is None:
@@ -209,13 +210,60 @@ class Session:
             self._validate(command)
             self.commands.put(command)
             self.pending = command
-        result = self._receive()
-        self.sequence += 1
-        result["sequence"] = self.sequence
-        self.current = result
-        self.cache[request_id] = (copy.deepcopy(command), copy.deepcopy(result))
+        if self.received is None:
+            self.received = self._receive()
+        result = self.received
+        result["sequence"] = self.sequence + 1
+        # Persist before acknowledging. A failed write retains this single response
+        # so an identical retry never requeues an action or waits for another result.
+        archived = self._archive(result)
+        self.sequence = result["sequence"]
+        self.cache[request_id] = (copy.deepcopy(command), archived)
+        self.current = archived if result["status"] == "finished" else result
         self.pending = None
+        self.received = None
+        if result["status"] == "finished":
+            self._release_worker()
         return copy.deepcopy(result)
+
+    def _archive(self, result: dict) -> dict:
+        directory = self.directory / "retry-frames"
+        directory.mkdir(exist_ok=True)
+        destination = directory / f"{result['sequence']:04d}.npz"
+        temporary = destination.with_suffix(".tmp")
+        try:
+            with temporary.open("wb") as stream:
+                np.savez_compressed(stream, **result["images"])
+            temporary.replace(destination)
+        finally:
+            temporary.unlink(missing_ok=True)
+        metadata = copy.deepcopy({key: value for key, value in result.items() if key != "images"})
+        metadata["_frames_path"] = str(destination)
+        return metadata
+
+    @staticmethod
+    def _restore(result: dict) -> dict:
+        restored = copy.deepcopy(result)
+        path = restored.pop("_frames_path", None)
+        if path is not None:
+            with np.load(path, allow_pickle=False) as frames:
+                restored["images"] = {name: frames[name] for name in frames.files}
+        return restored
+
+    def _release_worker(self):
+        """Release OS resources once; archived observations and retries remain usable."""
+        self.closed = True
+        if self.resources_released:
+            return
+        self.process.join(timeout=5)
+        if self.process.is_alive():
+            self.process.terminate()
+            self.process.join(timeout=5)
+        for channel in (self.commands, self.responses):
+            channel.close()
+            channel.join_thread()
+        self.process.close()
+        self.resources_released = True
 
     def _validate(self, command):
         if command["kind"] == "finish":
@@ -312,13 +360,7 @@ class Session:
                 if not self.closed and self.current["status"] != "finished":
                     self.finish("session-close", self.sequence, reason="session_closed")
             finally:
-                self.closed = True
-                self.process.join(timeout=5)
-                if self.process.is_alive():
-                    self.process.terminate()
-                    self.process.join(timeout=5)
-                self.commands.close()
-                self.responses.close()
+                self._release_worker()
 
     def __enter__(self):
         return self

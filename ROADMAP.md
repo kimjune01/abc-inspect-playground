@@ -17,7 +17,7 @@ using the next stage to draw research conclusions.
 - One successful scripted cube pick-and-place with privileged initial geometry.
 - A TUI subagent motion trial through a real MCP protocol client.
 
-The 14-test suite validates integration behavior. It does not establish general
+The 16-test suite validates integration behavior. It does not establish general
 manipulation ability, low-latency teleoperation, or benchmark validity.
 [DERISK.md](DERISK.md) preserves the earlier integration measurements; its list of
 unfinished features predates the live controls and scripted baseline.
@@ -34,7 +34,8 @@ unfinished features predates the live controls and scripted baseline.
 - Verify held keys, release, Escape, lost focus, errors, and reconnects do not queue
   unintended motion. Keep the interface small.
 - Make repeated reset/play practical without a manual restart after eight trials;
-  bound retained images and retry-cache memory, and define log retention.
+  define log retention and metadata eviction. Retry images are now stored on disk,
+  and finished trials release worker resources.
 
 **Gate:** record manual pick-and-place across a declared small seed set, report
 successes and failures, and measure stop behavior and latency. Do not require a

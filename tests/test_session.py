@@ -31,6 +31,7 @@ def test_idempotent_actions_stale_reads_and_inspect_finish(tmp_path):
             session.move("nan", 1, [float("nan")] * 14, steps=1)
         end = session.finish("finish-1", 1, reason="prototype_completed")
         assert end["status"] == "finished"
+        assert session.resources_released
         assert end["physics_steps"] == 5
         assert end["sim_time"] == moved["sim_time"]
         log = json.loads(Path(end["log_path"]).read_text())
@@ -115,3 +116,61 @@ def test_rejected_large_command_does_not_advance_physics(tmp_path):
             session.move("too-long", 0, first["joint_pos"], steps=4)
         assert session.observe()["physics_steps"] == 0
         assert session.observe()["sequence"] == 0
+
+
+def retained_array_bytes(value):
+    if isinstance(value, np.ndarray):
+        return value.nbytes
+    if isinstance(value, dict):
+        return sum(retained_array_bytes(item) for item in value.values())
+    if isinstance(value, (tuple, list)):
+        return sum(retained_array_bytes(item) for item in value)
+    return 0
+
+
+def test_finished_sessions_release_images_and_worker_but_keep_exact_retries(tmp_path):
+    with Session(tmp_path, seed=7, max_steps=12) as session:
+        first = session.observe()
+        target = first["joint_pos"]
+        original = session.move("first", 0, target, steps=1)
+        expected_images = {name: pixels.copy() for name, pixels in original["images"].items()}
+        # Callers must not be able to mutate the persisted retry response.
+        original["images"]["top"][:] = 0
+        for index in range(1, 12):
+            current = session.observe()
+            session.move(f"next-{index}", index, current["joint_pos"], steps=1)
+        assert session.current["status"] == "finished"
+        assert retained_array_bytes(session.cache) == 0
+        assert retained_array_bytes(session.current) == 0
+        assert session.resources_released
+        with pytest.raises(ValueError, match="closed"):
+            _ = session.process.sentinel
+        retry = session.move("first", 0, target, steps=1)
+        assert retry["sequence"] == 1
+        assert retry["physics_steps"] == 1
+        for name, pixels in retry["images"].items():
+            np.testing.assert_array_equal(pixels, expected_images[name])
+        assert session.observe()["physics_steps"] == 12
+        session.close()
+        session.close()
+        assert session.move("first", 0, target, steps=1)["physics_steps"] == 1
+
+
+def test_disk_cache_failure_retry_does_not_lose_or_repeat_motion(tmp_path, monkeypatch):
+    with Session(tmp_path, seed=7, max_steps=10) as session:
+        first = session.observe()
+        with monkeypatch.context() as patch:
+
+            def disk_full(*args, **kwargs):
+                raise OSError("disk full")
+
+            patch.setattr(np, "savez_compressed", disk_full)
+            with pytest.raises(OSError, match="disk full"):
+                session.move("recover", 0, first["joint_pos"], steps=2)
+        with pytest.raises(ValueError, match="pending"):
+            session.move("different", 0, first["joint_pos"], steps=2)
+        recovered = session.move("recover", 0, first["joint_pos"], steps=2)
+        assert recovered["physics_steps"] == 2
+        assert recovered["sequence"] == 1
+        assert retained_array_bytes(session.cache) == 0
+        assert session.observe()["physics_steps"] == 2
