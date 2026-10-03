@@ -1,8 +1,28 @@
+# Python environment, bytecode, and generated packages
 .venv/
 __pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Test, lint, type-check, and coverage output
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-*.egg-info/
-vendor/
-outputs/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Downloaded simulator sources/assets and local trial artifacts
+/vendor/
+/outputs/
+
+# Local secrets; example configuration may be committed
+.env
+.env.*
+!.env.example
+
+# macOS metadata
+.DS_Store
