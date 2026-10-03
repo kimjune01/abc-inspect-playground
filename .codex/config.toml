@@ -1,0 +1,4 @@
+# Shared local simulation for this project's agents; start scripts/serve.sh first.
+[mcp_servers.abc_sim]
+url = "http://127.0.0.1:8876/mcp"
+tool_timeout_sec = 90
