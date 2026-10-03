@@ -7,6 +7,25 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response
 
 
+def benchmark_result(observation: dict) -> dict:
+    """Present Inspect's final binary task score, never harness success or live reward."""
+    if observation.get("status") == "active":
+        return {"state": "pending", "label": "Not evaluated", "score": None}
+    value = observation.get("metrics", {}).get("abc_success")
+    if (
+        observation.get("status") != "finished"
+        or observation.get("eval_status") != "success"
+        or value not in (0, 1)
+    ):
+        return {"state": "unavailable", "label": "Score unavailable", "score": None}
+    passed = value == 1
+    return {
+        "state": "pass" if passed else "fail",
+        "label": "Pass · 1/1" if passed else "Fail · 0/1",
+        "score": int(passed),
+    }
+
+
 def add_play_routes(mcp, port: int):
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
 
@@ -40,6 +59,7 @@ def add_play_routes(mcp, port: int):
                 name: f"data:image/png;base64,{block.data}"
                 for name, block in zip(result["camera_order"], images, strict=True)
             }
+            result["benchmark"] = benchmark_result(result)
             return JSONResponse(result, headers={"Cache-Control": "no-store"})
         except Exception as error:  # noqa: BLE001 - report tool errors at HTTP boundary
             return JSONResponse({"error": str(error)}, status_code=400)

@@ -68,3 +68,15 @@ def test_inspect_writes_readable_scored_log_and_frames(tmp_path):
         assert np.load(frames[0]).shape == (168, 224, 3)
     finally:
         arm.close()
+
+
+def test_count_task_exposes_sampled_prompt_without_oracle_state():
+    arm = AbcEmbodiment(task="count_into_opaque_box")
+    try:
+        observation = arm.reset(Scene(id="count", instruction="Generic scene title"), seed=7)
+        assert observation.instruction == arm.env.prompt
+        assert observation.instruction != "Generic scene title"
+        assert set(observation.state) == {"joint_pos"}
+        assert arm.last_observation.instruction == observation.instruction
+    finally:
+        arm.close()

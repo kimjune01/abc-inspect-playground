@@ -30,6 +30,7 @@ running, reuse it.
 | ← / → | Yaw left / right |
 | Space | Open / close gripper |
 | Arm selector | Choose left or right arm |
+| Evaluate | End the attempt and score the result |
 | Reset | Start a fresh scene |
 | Escape | Stop sending commands |
 
@@ -40,6 +41,15 @@ the wrist retains its tilt. Pitch/roll controls are not implemented.
 
 Trials end after 1,000 physics ticks. Reset to continue; restart the server after
 eight trials. After restarting, refresh the page and click Start.
+
+The goal above the cameras comes from ABC's existing
+[`count_into_opaque_box` task](https://github.com/amazon-far/abc/blob/d0832d12651d1b260a652861a14648dc5f3660c7/abc_sim/task_eval/count_box.py).
+Follow the displayed directive: the box must contain exactly the required number
+of eligible objects and no ineligible objects. **Evaluate** ends the attempt and
+runs Inspect's scorer: grey means unscored, green **Pass · 1/1**, red **Fail · 0/1**.
+An unavailable score is amber. Scores appear only after the trial ends; they do
+not reveal hidden box contents during play. This uses ABC's task and evaluator,
+not an official RoboDojo evaluation.
 
 ## Agent control
 
@@ -94,8 +104,8 @@ Mink supplies inverse kinematics. Trials save native JSON, camera frames, and to
 transcripts under `outputs/trials/`. Full agent conversations are not captured.
 
 **`eval_status: success` means the run completed; `abc_success` is the task score.**
-This is a development sandbox: the browser's generic instruction is not a precise
-benchmark specification, and local agents still have shell access.
+This is a development sandbox: local agents still have shell access. A controlled
+human–model comparison also needs matched inputs, budgets, and held-out trials.
 
 ## Scripted pick-and-place
 
@@ -120,7 +130,7 @@ uv run ruff check src tests
 uv run mypy src/abc_inspect
 ```
 
-The 16 tests cover physics, cameras, resets, scoring, retries, concurrency,
+The 25 tests cover physics, cameras, resets, scoring, retries, concurrency,
 transports, keyboard-control endpoints, and resource cleanup. Source lives in
 [`src/abc_inspect/`](src/abc_inspect/); local artifacts in `outputs/` are ignored.
 

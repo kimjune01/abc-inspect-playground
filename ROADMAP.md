@@ -17,7 +17,7 @@ using the next stage to draw research conclusions.
 - One successful scripted cube pick-and-place with privileged initial geometry.
 - A TUI subagent motion trial through a real MCP protocol client.
 
-The 16-test suite validates integration behavior. It does not establish general
+The 25-test suite validates integration behavior. It does not establish general
 manipulation ability, low-latency teleoperation, or benchmark validity.
 [DERISK.md](DERISK.md) preserves the earlier integration measurements; its list of
 unfinished features predates the live controls and scripted baseline.
@@ -75,8 +75,9 @@ and agent failures; this candidate is not yet a settled benchmark design.
 
 - Decide whether the primary measurement is perception, planning, recovery, or
   motor control. State what the IK layer solves on the agent's behalf.
-- Align the visible instruction, sampled scene, target object, and scorer. The
-  current generic browser instruction and ABC counting objective are not sufficient.
+- Specify each benchmark's instruction, scene, target, and scorer. The browser now
+  shows ABC's sampled counting directive and its final Inspect score; additional
+  tasks need the same alignment.
 - Specify exactly which cameras, robot state, and tools the agent receives.
 - Fix physics and action budgets, reset semantics, seeds, and termination rules.
   Track wall time separately because simulation pauses during reasoning.

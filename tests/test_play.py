@@ -89,3 +89,84 @@ def test_play_routes_share_mcp_and_reject_foreign_origins(tmp_path):
     finally:
         for session in sessions.values():
             session.close()
+
+
+@pytest.mark.parametrize(
+    "observation, expected",
+    [
+        ({"status": "active"}, ("pending", "Not evaluated", None)),
+        ({"status": "active", "metrics": {"abc_success": 1}}, ("pending", "Not evaluated", None)),
+        (
+            {"status": "finished", "eval_status": "success", "metrics": {"abc_success": 1.0}},
+            ("pass", "Pass · 1/1", 1),
+        ),
+        (
+            {"status": "finished", "eval_status": "success", "metrics": {"abc_success": 0.0}},
+            ("fail", "Fail · 0/1", 0),
+        ),
+        (
+            {"status": "finished", "eval_status": "error", "metrics": {"abc_success": 1.0}},
+            ("unavailable", "Score unavailable", None),
+        ),
+        (
+            {"status": "finished", "eval_status": "success", "metrics": {}},
+            ("unavailable", "Score unavailable", None),
+        ),
+        (
+            {"status": "finished", "eval_status": "success", "metrics": {"abc_success": None}},
+            ("unavailable", "Score unavailable", None),
+        ),
+    ],
+)
+def test_benchmark_badge_requires_final_task_score(observation, expected):
+    from abc_inspect.play import benchmark_result
+
+    result = benchmark_result(observation)
+    assert (result["state"], result["label"], result["score"]) == expected
+
+
+def test_evaluate_uses_inspect_score_without_extra_physics(tmp_path):
+    import json
+    from pathlib import Path
+
+    server, sessions = create_server(tmp_path, port=8876)
+    try:
+        with TestClient(server.streamable_http_app(), base_url="http://127.0.0.1:8876") as client:
+
+            def call(tool, arguments):
+                response = client.post("/play/api", json={"tool": tool, "arguments": arguments})
+                assert response.status_code == 200, response.text
+                return response.json()
+
+            first = call(
+                "start_trial",
+                {
+                    "request_id": "scored",
+                    "task": "count_into_opaque_box",
+                    "seed": 7,
+                    "max_steps": 20,
+                },
+            )
+            assert first["benchmark"]["state"] == "pending"
+            assert "metrics" not in first
+            assert first["instruction"] != "Pick up objects and place them in the box"
+            arguments = {
+                "session_id": first["session_id"],
+                "request_id": "evaluate",
+                "expected_sequence": 0,
+                "reason": "user_evaluated",
+            }
+            final = call("finish_trial", arguments)
+            assert final["physics_steps"] == first["physics_steps"] == 0
+            assert final["benchmark"] == {"state": "fail", "label": "Fail · 0/1", "score": 0}
+            log = json.loads(Path(final["log_path"]).read_text())
+            assert log["results"]["metrics"]["abc_success"] == final["benchmark"]["score"]
+            assert call("finish_trial", arguments)["benchmark"] == final["benchmark"]
+            fresh = call(
+                "start_trial", {"request_id": "scored-reset", "task": "count_into_opaque_box"}
+            )
+            assert fresh["benchmark"]["state"] == "pending"
+            assert fresh["benchmark"]["score"] is None
+    finally:
+        for session in sessions.values():
+            session.close()

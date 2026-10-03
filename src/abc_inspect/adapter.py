@@ -49,6 +49,7 @@ class AbcEmbodiment:
         )
         self.last_observation: Observation | None = None
         self.steps = 0
+        self.task_name = task
         self.instruction = (
             "Put the plastic bottles in the bin"
             if task == TASK
@@ -109,6 +110,10 @@ class AbcEmbodiment:
         self.steps = 0
         self.env.forget_arm_state()
         obs, _ = self.env.reset(seed=seed, randomize=True)
+        if self.task_name == "count_into_opaque_box":
+            # The public reset prompt specifies the goal used by ABC's evaluator.
+            # Do not expose randomization metadata (eligible object IDs or poses).
+            self.instruction = str(obs["prompt"])
         return self._convert(obs)
 
     def step(self, action: Action) -> StepResult:
