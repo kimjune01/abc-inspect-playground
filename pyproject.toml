@@ -12,6 +12,8 @@ dependencies = [
   "mcp>=1.12,<2",
   "inspect-robots",
   "uvicorn>=0.31,<1",
+  "mink>=0.0.13,<1",
+  "daqp>=0.7,<1",
 ]
 
 [dependency-groups]

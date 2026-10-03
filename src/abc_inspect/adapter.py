@@ -39,9 +39,9 @@ def import_abc():
 
 
 class AbcEmbodiment:
-    def __init__(self, width: int = 224, height: int = 168):
+    def __init__(self, width: int = 224, height: int = 168, task: str = TASK):
         self.env = import_abc().make_env(
-            task=TASK,
+            task=task,
             camera_backend="mujoco",
             camera_height=height,
             camera_width=width,
@@ -56,7 +56,7 @@ class AbcEmbodiment:
         high = self.env.model.actuator_ctrlrange[self.env._ctrl_indices, 1].copy()
         low[[6, 13]], high[[6, 13]] = 0.0, 1.0
         self.info = EmbodimentInfo(
-            name="abc_bottles",
+            name="abc_bottles" if task == TASK else f"abc_{task}",
             action_space=Box(
                 shape=(14,),
                 low=low,

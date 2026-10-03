@@ -108,3 +108,27 @@ retry/timeout/concurrency handling, action budgets and both MCP transports.
 This is a trusted development sandbox. Benchmark isolation, useful manipulation
 skills, broader seed validation, live browser UI and webcam teleoperation are
 future gates, not established capabilities.
+
+## Scripted pick-and-place demo
+
+```sh
+uv run python -m abc_inspect.pick_place --output outputs/pick-place/run
+uv run python scripts/render_replay.py outputs/pick-place/run
+```
+
+The replay helper requires `ffmpeg`. Open the generated `outputs/demo/index.html`,
+or serve that directory on localhost. The page contains only three camera views.
+
+This controller uses **Mink IK and known initial object geometry**, with native
+Inspect owning the rollout. It physically lifts a cube and releases it into ABC's
+opaque box. It is a scripted baseline, not a vision-agent or MCP-driver result.
+`pick_place=1` verifies the selected cube was lifted >12 cm, released with the
+hand open, and counted inside the box by ABC. The independent `abc_success` score
+can remain zero because ABC's sampled counting directive requires more objects.
+The reproducibility test covers one fixed seed, not general task competence.
+
+The controller checks grasp reachability and a sampled approach path on a separate
+kinematic model. It sends only actuator targets to the real simulator. Coordinated
+joint increments preserve the planned path; clipping each joint independently
+caused the wrist camera to hit the box during development. Bottle grasps remain
+unreliable and are not presented as successful.
