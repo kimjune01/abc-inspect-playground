@@ -72,3 +72,27 @@ assert.equal(robotHotkey({...plain,target:{closest:()=>({})}}),false);
 assert.equal(robotHotkey({...plain,code:'Space',target:{closest:s=>s==='button,summary,a'?{}:null}}),false);
 """,
     )
+
+
+def test_r_swaps_arms_once_and_clears_held_controls():
+    check_browser(
+        ["armChanged", "swapArm"],
+        """
+const assert = require('node:assert/strict');
+let resetting=false,stops=0,labels=0,blurs=0;
+const selector={value:'left',blur:()=>blurs++};
+const $=()=>selector,stop=()=>stops++,gripLabel=()=>labels++;
+swapArm({repeat:false});
+assert.equal(selector.value,'right');
+assert.deepEqual([stops,labels,blurs],[1,1,1]);
+swapArm({repeat:true});
+assert.equal(selector.value,'right');
+assert.equal(stops,1);
+swapArm({repeat:false});
+assert.equal(selector.value,'left');
+resetting=true;
+swapArm({repeat:false});
+assert.equal(selector.value,'left');
+assert.equal(stops,2);
+""",
+    )

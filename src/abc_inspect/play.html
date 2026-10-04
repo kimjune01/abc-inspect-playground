@@ -18,7 +18,7 @@
 <p id="error" role="alert"></p>
 <div id="views"><figure><img id="top" alt="Overhead camera"><div id="empty-view"><strong>Your robot workspace</strong><span>Press Start or choose another task.</span></div><figcaption>Overhead</figcaption></figure><figure><img id="left" alt="Left wrist camera"><figcaption>Left wrist</figcaption></figure><figure><img id="right" alt="Right wrist camera"><figcaption>Right wrist</figcaption></figure></div>
 <footer>
-<div class="control-group"><label for="arm">Control arm</label><select id="arm"><option value="left">Left arm</option><option value="right">Right arm</option></select></div>
+<div class="control-group"><label for="arm">Control arm · R</label><select id="arm" aria-keyshortcuts="R"><option value="left">Left arm</option><option value="right">Right arm</option></select></div>
 <div id="touch" role="group" aria-label="Movement controls">
 <div class="control-group"><span>Forward / back</span><div class="key-pair"><button data-key="w" aria-label="Forward">W</button><button data-key="s" aria-label="Back">S</button></div></div>
 <div class="control-group"><span>Left / right</span><div class="key-pair"><button data-key="a" aria-label="Left">A</button><button data-key="d" aria-label="Right">D</button></div></div>
@@ -61,6 +61,13 @@ function robotHotkey(e){
  if(e.metaKey||e.ctrlKey||e.altKey||e.target.closest('input,textarea,select,[contenteditable="true"]'))return false;
  return !(e.code==='Space'&&e.target.closest('button,summary,a'));
 }
+function armChanged(){
+ stop();$('arm').blur();gripLabel();
+}
+function swapArm(e){
+ if(e.repeat||resetting)return;
+ $('arm').value=$('arm').value==='left'?'right':'left';armChanged();
+}
 function syncKeys(){document.querySelectorAll('[data-key]').forEach(b=>b.classList.toggle('active',keys.has(b.dataset.key)));}
 function playStatus(s){
  const budget=budgetState(s);
@@ -102,11 +109,11 @@ async function tick(){
  catch(e){stop();$('error').textContent=e.message;try{render(await call('observe',{session_id:state.session_id}));}catch{} $('status').textContent='Control paused · '+e.message;}
  finally{busy=false;updateActions();}
 }
-window.addEventListener('keydown',e=>{if(!robotHotkey(e))return;const key=e.key.length===1?e.key.toLowerCase():e.key;if(key==='Escape'){stop();e.preventDefault();return;}if(mapping[key]){e.preventDefault();keys.add(key);syncKeys();tick();}if(e.code==='Space'){e.preventDefault();if(!e.repeat)toggleGrip();}});
+window.addEventListener('keydown',e=>{if(!robotHotkey(e))return;const key=e.key.length===1?e.key.toLowerCase():e.key;if(key==='Escape'){stop();e.preventDefault();return;}if(key==='r'){e.preventDefault();swapArm(e);return;}if(mapping[key]){e.preventDefault();keys.add(key);syncKeys();tick();}if(e.code==='Space'){e.preventDefault();if(!e.repeat)toggleGrip();}});
 window.addEventListener('keyup',e=>{keys.delete(e.key.length===1?e.key.toLowerCase():e.key);syncKeys();});
 window.addEventListener('blur',stop);document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
 for(const b of document.querySelectorAll('[data-key]')){b.addEventListener('click',async e=>{if(e.detail!==0)return;keys.add(b.dataset.key);syncKeys();await tick();keys.delete(b.dataset.key);syncKeys();});b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys.add(b.dataset.key);syncKeys();tick();});for(const type of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(type,()=>{keys.delete(b.dataset.key);syncKeys();});}
-$('stop').onclick=stop;$('reset').onclick=()=>reset();$('evaluate').onclick=evaluate;$('grip').onclick=toggleGrip;$('arm').onchange=()=>{stop();$('arm').blur();gripLabel();};setInterval(tick,60);
+$('stop').onclick=stop;$('reset').onclick=()=>reset();$('evaluate').onclick=evaluate;$('grip').onclick=toggleGrip;$('arm').onchange=armChanged;setInterval(tick,60);
 (async()=>{
  updateActions();
  try{const response=await fetch('/play/catalog');if(!response.ok)throw new Error('Could not load scenes');scenes=(await response.json()).scenes;drawNav();updateActions();}

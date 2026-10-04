@@ -7,7 +7,7 @@ ABC, MuJoCo, Inspect, Mink, and MCP. Work through these stages in order.
 
 Six ABC tasks across two scenes, Chrome teleoperation, five retry-safe MCP tools,
 and native Inspect logs and scores. A privileged scripted pick-and-place and a
-TUI subagent motion trial work. The 36 tests validate integration, not general
+TUI subagent motion trial work. The 37 tests validate integration, not general
 manipulation ability or benchmark validity. See [README](README.md) for setup and
 [DERISK](DERISK.md) for earlier measurements.
 

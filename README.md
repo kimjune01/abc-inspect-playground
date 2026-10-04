@@ -29,7 +29,7 @@ running, reuse it.
 | ↑ / ↓ | Up / down |
 | ← / → | Yaw left / right |
 | Space | Open / close gripper |
-| Arm selector | Choose left or right arm |
+| R / arm selector | Swap left and right arms |
 | Evaluate | End the attempt and score the result |
 | Reset | Start a fresh scene |
 | Escape | Stop sending commands |
@@ -143,7 +143,7 @@ uv run ruff check src tests
 uv run mypy src/abc_inspect
 ```
 
-The 36 tests cover physics, cameras, resets, scoring, retries, concurrency,
+The 37 tests cover physics, cameras, resets, scoring, retries, concurrency,
 transports, scene/task switching, keyboard-control endpoints, and resource cleanup. Source lives in
 [`src/abc_inspect/`](src/abc_inspect/); local artifacts in `outputs/` are ignored.
 
