@@ -1,21 +1,29 @@
-"""Exercise the browser's budget status without a browser or simulator."""
+"""Run browser-state assertions directly in Node, without a simulator."""
 
 import re
 import subprocess
 from pathlib import Path
 
 
-def test_browser_distinguishes_budget_exhaustion_from_manual_finish():
+def check_browser(functions, assertions):
     html = (Path(__file__).parents[1] / "src/abc_inspect/play.html").read_text()
-    function = re.search(r"function playStatus\(s\)\{.*?\n\}", html, re.DOTALL)
-    assert function, "The browser must explain why a trial stopped"
+    sources = []
+    for name in functions:
+        function = re.search(rf"function {name}\([^)]*\)\{{.*?\n\}}", html, re.DOTALL)
+        assert function, f"Missing browser function: {name}"
+        sources.append(function.group())
     subprocess.run(
-        [
-            "node",
-            "--input-type=commonjs",
-            "-e",
-            function.group()
-            + """
+        ["node", "-e", "\n".join(sources) + assertions],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_browser_distinguishes_budget_exhaustion_from_manual_finish():
+    check_browser(
+        ["budgetState", "playStatus"],
+        """
 const assert = require('node:assert/strict');
 assert.equal(playStatus({status:'active',max_steps:5000,sim_time:34,physics_steps:1000}),
              'Ready · 34.0s · 4000 steps left');
@@ -28,23 +36,13 @@ assert.equal(playStatus({status:'finished',sim_time:34,physics_steps:1000}),
 assert.equal(playStatus({status:'finished',sim_time:2,physics_steps:60}),
              'Finished · 2.0s · Reset to play again');
 """,
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
     )
 
 
 def test_budget_warns_before_exhaustion_and_stays_distinct_from_task_score():
-    html = (Path(__file__).parents[1] / "src/abc_inspect/play.html").read_text()
-    function = re.search(r"function budgetState\(s\)\{.*?\n\}", html, re.DOTALL)
-    assert function, "Budget needs a visible countdown and a near-limit warning"
-    subprocess.run(
-        [
-            "node",
-            "-e",
-            function.group()
-            + """
+    check_browser(
+        ["budgetState"],
+        """
 const assert = require('node:assert/strict');
 assert.deepEqual(budgetState({physics_steps:1000,max_steps:5000,status:'active'}),
                  {remaining:4000,tone:'ready',label:'4000 steps left'});
@@ -58,23 +56,13 @@ assert.deepEqual(budgetState({physics_steps:1000,status:'finished'}),
 assert.deepEqual(budgetState({physics_steps:5,status:'finished'}),
                  {remaining:995,tone:'finished',label:'995 steps left'});
 """,
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
     )
 
 
 def test_robot_hotkeys_respect_browser_shortcuts_and_focused_controls():
-    html = (Path(__file__).parents[1] / "src/abc_inspect/play.html").read_text()
-    function = re.search(r"function robotHotkey\(e\)\{.*?\n\}", html, re.DOTALL)
-    assert function, "Robot commands must not intercept browser/control keys"
-    subprocess.run(
-        [
-            "node",
-            "-e",
-            function.group()
-            + """
+    check_browser(
+        ["robotHotkey"],
+        """
 const assert = require('node:assert/strict');
 const plain = {target:{closest:()=>null},code:'KeyW'};
 assert.equal(robotHotkey(plain),true);
@@ -83,8 +71,4 @@ for(const modifier of ['metaKey','ctrlKey','altKey'])
 assert.equal(robotHotkey({...plain,target:{closest:()=>({})}}),false);
 assert.equal(robotHotkey({...plain,code:'Space',target:{closest:s=>s==='button,summary,a'?{}:null}}),false);
 """,
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
     )

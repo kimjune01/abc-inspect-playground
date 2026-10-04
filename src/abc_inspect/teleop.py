@@ -34,7 +34,6 @@ class Teleop:
 
     def poses(self):
         self.sync()
-        self.configuration.update(q=self.arm.env.data.qpos)
         return {
             side: {
                 "position": pose.translation().tolist(),
@@ -52,7 +51,6 @@ class Teleop:
         self.sync()
         side = command["arm"]
         offset = 0 if side == "left" else 7
-        self.configuration.update(q=self.arm.env.data.qpos)
         pose = self.configuration.get_transform_frame_to_world(f"{side}_grasp_site", "site")
         rotation = mink.SO3.exp(np.array([0.0, 0.0, command["yaw"]])) @ pose.rotation()
         self.frames[side].set_target(
